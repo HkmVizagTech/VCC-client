@@ -1,0 +1,618 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { format } from "date-fns";
+import { authFetch } from "@/lib/authClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  Plus,
+  Calendar,
+  Pencil,
+  Trash2,
+  ArrowRight,
+  ListTree,
+} from "lucide-react";
+
+const EVENT_STATUSES = [
+  "draft",
+  "registration_open",
+  "registration_closed",
+  "ongoing",
+  "completed",
+  "archived",
+] as const;
+
+const NEXT_STATUS: Record<string, string> = {
+  draft: "registration_open",
+  registration_open: "registration_closed",
+  registration_closed: "ongoing",
+  ongoing: "completed",
+  completed: "archived",
+};
+
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  registration_open: "Registration Open",
+  registration_closed: "Registration Closed",
+  ongoing: "Ongoing",
+  completed: "Completed",
+  archived: "Archived",
+};
+
+interface Coordinator {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface EventItem {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  venue?: string;
+  bannerImage?: string;
+  eventStart: string;
+  eventEnd: string;
+  registrationStart?: string;
+  registrationEnd?: string;
+  status: string;
+  coordinatorId?: Coordinator | null;
+}
+
+const emptyForm = {
+  name: "",
+  description: "",
+  venue: "",
+  bannerImage: "",
+  registrationStart: "",
+  registrationEnd: "",
+  eventStart: "",
+  eventEnd: "",
+  coordinatorId: "",
+};
+
+function toLocalInput(value?: string) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(d, "yyyy-MM-dd'T'HH:mm");
+}
+
+export default function EventsPage() {
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<EventItem | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
+
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "10" });
+      if (statusFilter) params.set("status", statusFilter);
+      const res = await authFetch(`/api/events?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEvents(data.events);
+        setTotal(data.total);
+        setTotalPages(data.totalPages);
+      } else {
+        toast.error("Failed to load events");
+      }
+    } catch {
+      toast.error("Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  const fetchCoordinators = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/users");
+      if (res.ok) {
+        const data = await res.json();
+        setCoordinators(
+          data.users.filter((u: Coordinator) => u.role !== "super_admin")
+        );
+      }
+    } catch {
+      toast.error("Failed to load coordinators");
+    }
+  }, []);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditing(null);
+  };
+
+  const handleSubmit = async () => {
+    if (!form.name || !form.eventStart || !form.eventEnd) {
+      toast.error("Name, event start and event end are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const url = editing ? `/api/events/${editing._id}` : "/api/events";
+      const method = editing ? "PUT" : "POST";
+      const body = {
+        name: form.name,
+        description: form.description || undefined,
+        venue: form.venue || undefined,
+        bannerImage: form.bannerImage || undefined,
+        registrationStart: form.registrationStart || undefined,
+        registrationEnd: form.registrationEnd || undefined,
+        eventStart: form.eventStart,
+        eventEnd: form.eventEnd,
+        coordinatorId: form.coordinatorId || undefined,
+      };
+      const res = await authFetch(url, {
+        method,
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(editing ? "Event updated" : "Event created");
+        setDialogOpen(false);
+        resetForm();
+        fetchEvents();
+      } else {
+        toast.error(data.message || "Something went wrong");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAdvance = async (event: EventItem) => {
+    const next = NEXT_STATUS[event.status];
+    if (!next) return;
+    setAdvancingId(event._id);
+    try {
+      const res = await authFetch(`/api/events/${event._id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Event moved to "${statusLabels[next]}"`);
+        fetchEvents();
+      } else {
+        toast.error(data.message || "Could not update status");
+      }
+    } catch {
+      toast.error("Could not update status");
+    } finally {
+      setAdvancingId(null);
+    }
+  };
+
+  const handleDelete = async (event: EventItem) => {
+    try {
+      const res = await authFetch(`/api/events/${event._id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Event deleted");
+        fetchEvents();
+      } else {
+        toast.error(data.message || "Could not delete event");
+      }
+    } catch {
+      toast.error("Could not delete event");
+    }
+  };
+
+  const openEdit = (event: EventItem) => {
+    setEditing(event);
+    setForm({
+      name: event.name,
+      description: event.description || "",
+      venue: event.venue || "",
+      bannerImage: event.bannerImage || "",
+      registrationStart: toLocalInput(event.registrationStart),
+      registrationEnd: toLocalInput(event.registrationEnd),
+      eventStart: toLocalInput(event.eventStart),
+      eventEnd: toLocalInput(event.eventEnd),
+      coordinatorId: event.coordinatorId?._id || "",
+    });
+    setDialogOpen(true);
+    fetchCoordinators();
+  };
+
+  const openCreate = () => {
+    fetchCoordinators();
+    setDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Events</h1>
+          <p className="text-sm text-muted-foreground">
+            Festivals and seva programs
+          </p>
+        </div>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) resetForm();
+          }}
+        >
+          <DialogTrigger render={<Button onClick={openCreate} />}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Event
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {editing ? "Edit Event" : "Create Event"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto py-2 pr-1">
+              <div className="space-y-2">
+                <Label>Event Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Sri Krishna Janmashtami 2026"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  placeholder="Short description of the festival"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Venue</Label>
+                  <Input
+                    value={form.venue}
+                    onChange={(e) =>
+                      setForm({ ...form, venue: e.target.value })
+                    }
+                    placeholder="e.g. Temple premises"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Banner Image URL</Label>
+                  <Input
+                    value={form.bannerImage}
+                    onChange={(e) =>
+                      setForm({ ...form, bannerImage: e.target.value })
+                    }
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Registration Opens</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.registrationStart}
+                    onChange={(e) =>
+                      setForm({ ...form, registrationStart: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Registration Closes</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.registrationEnd}
+                    onChange={(e) =>
+                      setForm({ ...form, registrationEnd: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Event Starts *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.eventStart}
+                    onChange={(e) =>
+                      setForm({ ...form, eventStart: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Event Ends *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.eventEnd}
+                    onChange={(e) =>
+                      setForm({ ...form, eventEnd: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Coordinator</Label>
+                <Select
+                  value={form.coordinatorId || null}
+                  onValueChange={(v) => {
+                    if (v) setForm({ ...form, coordinatorId: v });
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a coordinator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coordinators.map((c) => (
+                      <SelectItem key={c._id} value={c._id}>
+                        {c.name} — {c.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting
+                  ? "Saving..."
+                  : editing
+                    ? "Update Event"
+                    : "Create Event"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Select
+          value={statusFilter || null}
+          onValueChange={(v) => {
+            if (v && v !== "__all") setStatusFilter(v);
+            else setStatusFilter("");
+          }}
+        >
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">All statuses</SelectItem>
+            {EVENT_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabels[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />
+          ))}
+        </div>
+      ) : events.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
+          <Calendar className="mb-4 h-12 w-12 text-muted-foreground/50" />
+          <p className="text-lg font-medium">No events found</p>
+          <p className="text-sm text-muted-foreground">
+            Create an event to start collecting registrations
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Venue</TableHead>
+                <TableHead>Coordinator</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.map((event) => {
+                const next = NEXT_STATUS[event.status];
+                return (
+                  <TableRow key={event._id}>
+                    <TableCell className="max-w-64">
+                      <div className="font-medium">{event.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {event.slug}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {format(new Date(event.eventStart), "MMM d, yyyy")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(event.eventStart), "h:mm a")} —{" "}
+                        {format(new Date(event.eventEnd), "h:mm a")}
+                      </div>
+                    </TableCell>
+                    <TableCell>{event.venue || "—"}</TableCell>
+                    <TableCell>
+                      {event.coordinatorId?.name || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {statusLabels[event.status] || event.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          render={
+                            <Link
+                              href={`/admin/events/${event._id}`}
+                              title="Services"
+                            />
+                          }
+                        >
+                          <ListTree className="h-4 w-4" />
+                        </Button>
+                        {next && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={advancingId === event._id}
+                            onClick={() => handleAdvance(event)}
+                            title={`Move to ${statusLabels[next]}`}
+                          >
+                            {statusLabels[next]}
+                            <ArrowRight className="ml-1 h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(event)}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {event.status === "draft" && (
+                          <AlertDialog>
+                            <AlertDialogTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Delete"
+                                />
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete &ldquo;{event.name}&rdquo;?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete the draft event.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(event)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {events.length} of {total} events
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
