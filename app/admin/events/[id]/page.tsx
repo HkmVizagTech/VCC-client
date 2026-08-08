@@ -51,6 +51,15 @@ import {
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
 
+const EVENT_STATUSES = [
+  "draft",
+  "registration_open",
+  "registration_closed",
+  "ongoing",
+  "completed",
+  "archived",
+] as const;
+
 const statusLabels: Record<string, string> = {
   draft: "Draft",
   registration_open: "Registration Open",
@@ -227,6 +236,26 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleStatusChange = async (status: string) => {
+    if (!event || status === event.status) return;
+    try {
+      const res = await authFetch(`/api/events/${event._id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Status updated to "${statusLabels[status]}"`);
+      } else {
+        toast.error(data.message || "Could not update status");
+      }
+    } catch {
+      toast.error("Could not update status");
+    } finally {
+      fetchData();
+    }
+  };
+
   const handleDelete = async (service: Service) => {
     try {
       const res = await authFetch(`/api/services/${service._id}`, {
@@ -312,11 +341,30 @@ export default function EventDetailPage() {
               )}
             </div>
           </div>
-          {event && (
-            <Badge variant="outline">
-              {statusLabels[event.status] || event.status}
-            </Badge>
-          )}
+          {event &&
+            (canManage ? (
+              <Select
+                value={event.status}
+                onValueChange={(v) => {
+                  if (v && v !== event.status) handleStatusChange(v);
+                }}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {statusLabels[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="outline">
+                {statusLabels[event.status] || event.status}
+              </Badge>
+            ))}
         </div>
       </div>
 

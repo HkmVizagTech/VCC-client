@@ -41,14 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Plus,
   Calendar,
   Pencil,
   Trash2,
-  ArrowRight,
   ListTree,
 } from "lucide-react";
 
@@ -60,14 +58,6 @@ const EVENT_STATUSES = [
   "completed",
   "archived",
 ] as const;
-
-const NEXT_STATUS: Record<string, string> = {
-  draft: "registration_open",
-  registration_open: "registration_closed",
-  registration_closed: "ongoing",
-  ongoing: "completed",
-  completed: "archived",
-};
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -131,7 +121,7 @@ export default function EventsPage() {
   const [form, setForm] = useState(emptyForm);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [advancingId, setAdvancingId] = useState<string | null>(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -221,26 +211,25 @@ export default function EventsPage() {
     }
   };
 
-  const handleAdvance = async (event: EventItem) => {
-    const next = NEXT_STATUS[event.status];
-    if (!next) return;
-    setAdvancingId(event._id);
+  const handleStatusChange = async (event: EventItem, status: string) => {
+    if (status === event.status) return;
+    setStatusUpdatingId(event._id);
     try {
       const res = await authFetch(`/api/events/${event._id}/status`, {
         method: "PUT",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`Event moved to "${statusLabels[next]}"`);
-        fetchEvents();
+        toast.success(`Status updated to "${statusLabels[status]}"`);
       } else {
         toast.error(data.message || "Could not update status");
       }
     } catch {
       toast.error("Could not update status");
     } finally {
-      setAdvancingId(null);
+      setStatusUpdatingId(null);
+      fetchEvents();
     }
   };
 
@@ -481,7 +470,6 @@ export default function EventsPage() {
             </TableHeader>
             <TableBody>
               {events.map((event) => {
-                const next = NEXT_STATUS[event.status];
                 return (
                   <TableRow key={event._id}>
                     <TableCell className="max-w-64">
@@ -504,9 +492,26 @@ export default function EventsPage() {
                       {event.coordinatorId?.name || "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {statusLabels[event.status] || event.status}
-                      </Badge>
+                      <Select
+                        value={event.status}
+                        onValueChange={(v) => {
+                          if (v && v !== event.status) handleStatusChange(event, v);
+                        }}
+                      >
+                        <SelectTrigger
+                          className="w-44"
+                          disabled={statusUpdatingId === event._id}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EVENT_STATUSES.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {statusLabels[s]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -522,18 +527,6 @@ export default function EventsPage() {
                         >
                           <ListTree className="h-4 w-4" />
                         </Button>
-                        {next && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={advancingId === event._id}
-                            onClick={() => handleAdvance(event)}
-                            title={`Move to ${statusLabels[next]}`}
-                          >
-                            {statusLabels[next]}
-                            <ArrowRight className="ml-1 h-3 w-3" />
-                          </Button>
-                        )}
                         <Button
                           variant="ghost"
                           size="icon"
