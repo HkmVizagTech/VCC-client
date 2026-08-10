@@ -11,11 +11,17 @@ export const REGISTRATION_STATUSES = [
 
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
+export interface ServiceAvailabilityEntry {
+  date: string;
+  timeSlot: string;
+}
+
 export interface IRegistration extends Document {
   eventId: Types.ObjectId;
   volunteerId: Types.ObjectId;
   serviceId?: Types.ObjectId;
   status: RegistrationStatus;
+  serviceAvailability?: ServiceAvailabilityEntry[];
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +41,13 @@ const registrationSchema = new Schema<IRegistration>(
       enum: REGISTRATION_STATUSES,
       default: "registered",
     },
+    serviceAvailability: [
+      {
+        _id: false,
+        date: { type: String, required: true },
+        timeSlot: { type: String, required: true },
+      },
+    ],
     notes: String,
   },
   { timestamps: true, versionKey: false }

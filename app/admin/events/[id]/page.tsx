@@ -95,6 +95,7 @@ interface EventDetail {
   venue?: string;
   eventStart: string;
   eventEnd: string;
+  availabilitySlots?: string[];
   status: string;
 }
 
@@ -609,6 +610,9 @@ export default function EventDetailPage() {
           eventId={eventId}
           services={services}
           canManage={canManage}
+          availabilitySlots={event?.availabilitySlots || []}
+          eventStart={event?.eventStart}
+          eventEnd={event?.eventEnd}
         />
       </div>
     </div>

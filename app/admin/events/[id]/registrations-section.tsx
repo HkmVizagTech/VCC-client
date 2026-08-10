@@ -29,10 +29,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
-  AvailabilityPicker,
-  availabilitySummary,
-  type AvailabilityValue,
-} from "@/components/availability-picker";
+  ServiceAvailabilityPicker,
+  serviceAvailabilitySummary,
+  type ServiceAvailabilityEntry,
+} from "@/components/service-availability-picker";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2 } from "lucide-react";
 
@@ -101,7 +101,7 @@ const emptyForm = {
   locality: "",
   occupation: "",
   skills: [] as string[],
-  availability: { days: [] as string[], timeSlots: [] as string[] },
+  serviceAvailability: [] as ServiceAvailabilityEntry[],
   notes: "",
 };
 
@@ -116,7 +116,6 @@ interface RegisteredVolunteer {
   locality?: string;
   occupation?: string;
   skills?: string[];
-  availability?: AvailabilityValue;
 }
 
 interface Registration {
@@ -124,6 +123,7 @@ interface Registration {
   status: string;
   volunteerId?: RegisteredVolunteer;
   serviceId?: { _id: string; name: string } | null;
+  serviceAvailability?: ServiceAvailabilityEntry[];
   createdAt: string;
 }
 
@@ -136,10 +136,16 @@ export function RegistrationsSection({
   eventId,
   services,
   canManage,
+  availabilitySlots,
+  eventStart,
+  eventEnd,
 }: {
   eventId: string;
   services: ServiceOption[];
   canManage: boolean;
+  availabilitySlots: string[];
+  eventStart?: string;
+  eventEnd?: string;
 }) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,7 +251,7 @@ export function RegistrationsSection({
           locality: form.locality || undefined,
           occupation: form.occupation || undefined,
           skills: form.skills,
-          availability: form.availability,
+          serviceAvailability: form.serviceAvailability,
           notes: form.notes || undefined,
         }),
       });
@@ -393,12 +399,17 @@ export function RegistrationsSection({
                       })}
                     </div>
                   </div>
-                  <AvailabilityPicker
-                    value={form.availability}
-                    onChange={(availability) =>
-                      setForm({ ...form, availability })
-                    }
-                  />
+                  {availabilitySlots.length > 0 && eventStart && eventEnd && (
+                    <ServiceAvailabilityPicker
+                      start={new Date(eventStart)}
+                      end={new Date(eventEnd)}
+                      slots={availabilitySlots}
+                      value={form.serviceAvailability}
+                      onChange={(serviceAvailability) =>
+                        setForm({ ...form, serviceAvailability })
+                      }
+                    />
+                  )}
                   <Button
                     className="w-full"
                     onClick={handleAddRegistration}
@@ -473,7 +484,9 @@ export function RegistrationsSection({
               {registrations.map((reg) => {
                 const vol = reg.volunteerId;
                 const next = NEXT_STATUSES[reg.status] || [];
-                const availability = availabilitySummary(vol?.availability);
+                const availability = serviceAvailabilitySummary(
+                  reg.serviceAvailability
+                );
                 return (
                   <TableRow key={reg._id}>
                     <TableCell>

@@ -87,6 +87,7 @@ interface EventItem {
   eventEnd: string;
   registrationStart?: string;
   registrationEnd?: string;
+  availabilitySlots?: string[];
   status: string;
   coordinatorId?: Coordinator | null;
 }
@@ -101,6 +102,7 @@ const emptyForm = {
   eventStart: "",
   eventEnd: "",
   coordinatorId: "",
+  availabilitySlots: [] as string[],
 };
 
 function toLocalInput(value?: string) {
@@ -190,6 +192,7 @@ export default function EventsPage() {
         registrationEnd: form.registrationEnd || undefined,
         eventStart: form.eventStart,
         eventEnd: form.eventEnd,
+        availabilitySlots: form.availabilitySlots.filter((s) => s.trim()),
         coordinatorId: form.coordinatorId || undefined,
       };
       const res = await authFetch(url, {
@@ -263,6 +266,7 @@ export default function EventsPage() {
       eventStart: toLocalInput(event.eventStart),
       eventEnd: toLocalInput(event.eventEnd),
       coordinatorId: event.coordinatorId?._id || "",
+      availabilitySlots: event.availabilitySlots || [],
     });
     setDialogOpen(true);
     fetchCoordinators();
@@ -414,6 +418,56 @@ export default function EventsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Availability Time Slots</Label>
+                <p className="text-xs text-muted-foreground">
+                  Time slot options volunteers will choose from for each day of
+                  the event.
+                </p>
+                <div className="space-y-2">
+                  {form.availabilitySlots.map((slot, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={slot}
+                        onChange={(e) => {
+                          const next = [...form.availabilitySlots];
+                          next[idx] = e.target.value;
+                          setForm({ ...form, availabilitySlots: next });
+                        }}
+                        placeholder="e.g. Full Day 9am-9pm"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const next = form.availabilitySlots.filter(
+                            (_, i) => i !== idx
+                          );
+                          setForm({ ...form, availabilitySlots: next });
+                        }}
+                        title="Remove slot"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        availabilitySlots: [...form.availabilitySlots, ""],
+                      })
+                    }
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add time slot
+                  </Button>
+                </div>
               </div>
               <Button
                 className="w-full"

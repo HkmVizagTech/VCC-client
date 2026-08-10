@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
-    const { eventId, name, phone, whatsappNumber, age, gender, locality, occupation, skills, availability, notes } = body;
+    const { eventId, name, phone, whatsappNumber, age, gender, locality, occupation, skills, serviceAvailability, notes } = body;
 
     if (!eventId || !name || !phone) {
       return NextResponse.json(
@@ -52,7 +52,6 @@ export async function POST(req: NextRequest) {
         locality,
         occupation,
         skills: skills || [],
-        availability,
         notes,
         volunteerNumber,
         sevaToken,
@@ -77,6 +76,7 @@ export async function POST(req: NextRequest) {
     const registration = await Registration.create({
       eventId,
       volunteerId: volunteer._id,
+      serviceAvailability: serviceAvailability || [],
       notes,
     });
 

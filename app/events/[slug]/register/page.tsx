@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  AvailabilityPicker,
-} from "@/components/availability-picker";
+  ServiceAvailabilityPicker,
+  type ServiceAvailabilityEntry,
+} from "@/components/service-availability-picker";
 import {
   Select,
   SelectContent,
@@ -66,7 +67,7 @@ const emptyForm = {
   locality: "",
   occupation: "",
   skills: [] as string[],
-  availability: { days: [] as string[], timeSlots: [] as string[] },
+  serviceAvailability: [] as ServiceAvailabilityEntry[],
   notes: "",
 };
 
@@ -77,6 +78,7 @@ interface RegisterEvent {
   eventStart: string;
   eventEnd: string;
   venue?: string;
+  availabilitySlots?: string[];
 }
 
 interface SuccessData {
@@ -152,7 +154,7 @@ export default function RegisterPage() {
           locality: form.locality || undefined,
           occupation: form.occupation || undefined,
           skills: form.skills,
-          availability: form.availability,
+          serviceAvailability: form.serviceAvailability,
           notes: form.notes || undefined,
         }),
       });
@@ -458,12 +460,18 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <AvailabilityPicker
-                value={form.availability}
-                onChange={(availability) =>
-                  setForm({ ...form, availability })
-                }
-              />
+              {event?.availabilitySlots &&
+                event.availabilitySlots.length > 0 && (
+                  <ServiceAvailabilityPicker
+                    start={new Date(event.eventStart)}
+                    end={new Date(event.eventEnd)}
+                    slots={event.availabilitySlots}
+                    value={form.serviceAvailability}
+                    onChange={(serviceAvailability) =>
+                      setForm({ ...form, serviceAvailability })
+                    }
+                  />
+                )}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Anything else?</Label>

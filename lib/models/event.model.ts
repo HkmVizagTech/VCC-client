@@ -21,6 +21,7 @@ export interface IEvent extends Document {
   registrationEnd?: Date;
   eventStart: Date;
   eventEnd: Date;
+  availabilitySlots?: string[];
   status: EventStatus;
   coordinatorId?: Types.ObjectId;
   createdBy?: Types.ObjectId;
@@ -45,6 +46,7 @@ const eventSchema = new Schema<IEvent>(
     registrationEnd: Date,
     eventStart: { type: Date, required: true },
     eventEnd: { type: Date, required: true },
+    availabilitySlots: [{ type: String, trim: true }],
     status: {
       type: String,
       enum: EVENT_STATUSES,

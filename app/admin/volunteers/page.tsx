@@ -30,10 +30,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  AvailabilityPicker,
-  type AvailabilityValue,
-} from "@/components/availability-picker";
 import { toast } from "sonner";
 import { Plus, Users, Pencil, Search, Copy, Check } from "lucide-react";
 
@@ -78,7 +74,6 @@ interface Volunteer {
   locality?: string;
   occupation?: string;
   skills?: string[];
-  availability?: AvailabilityValue;
   sevaToken?: string;
   notes?: string;
   createdAt: string;
@@ -92,7 +87,6 @@ const emptyForm = {
   locality: "",
   occupation: "",
   skills: [] as string[],
-  availability: { days: [] as string[], timeSlots: [] as string[] },
   notes: "",
 };
 
@@ -181,7 +175,6 @@ export default function VolunteersPage() {
         locality: form.locality || undefined,
         occupation: form.occupation || undefined,
         skills: form.skills,
-        availability: form.availability,
         notes: form.notes || undefined,
       };
       const res = await authFetch(url, {
@@ -214,10 +207,6 @@ export default function VolunteersPage() {
       locality: v.locality || "",
       occupation: v.occupation || "",
       skills: v.skills || [],
-      availability: v.availability || {
-        days: [],
-        timeSlots: [],
-      },
       notes: v.notes || "",
     });
     setDialogOpen(true);
@@ -375,12 +364,6 @@ export default function VolunteersPage() {
                   })}
                 </div>
               </div>
-              <AvailabilityPicker
-                value={form.availability}
-                onChange={(availability) =>
-                  setForm({ ...form, availability })
-                }
-              />
               <div className="space-y-2">
                 <Label>Notes</Label>
                 <Textarea
