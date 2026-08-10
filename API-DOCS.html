@@ -75,13 +75,13 @@
   <h3>Base URL</h3>
   <table>
     <tr><th>Environment</th><th>Base URL</th></tr>
-    <tr><td><b>Production</b></td><td><code>https://seva.harekrishnavizag.org</code></td></tr>
+    <tr><td><b>Production</b></td><td><code>https://vcc-client.vercel.app</code></td></tr>
     <tr><td><b>Local dev</b></td><td><code>http://localhost:3000</code></td></tr>
   </table>
 
   <h3>What is curl?</h3>
   <p><b>curl</b> is a command-line tool (built into Windows 10/11, macOS, Linux) to test API calls. On Windows open <b>Command Prompt</b> and type the command. Example:</p>
-  <pre><code>curl https://seva.harekrishnavizag.org/api/health</code></pre>
+  <pre><code>curl https://vcc-client.vercel.app/api/health</code></pre>
 
   <h3>Authentication</h3>
   <p>All <b>mobile</b> endpoints are public — no login. Admin endpoints need a JWT token sent as a header: <code>Authorization: Bearer &lt;token&gt;</code>. The mobile app never needs this.</p>
@@ -92,13 +92,13 @@
 
   <h3>1. Check the server is alive</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/health</span></p>
-  <pre><code>curl https://seva.harekrishnavizag.org/api/health</code></pre>
+  <pre><code>curl https://vcc-client.vercel.app/api/health</code></pre>
   <pre><code>{ "status": "ok", "timestamp": "2026-08-10T05:49:57.101Z", "mongodb": "connected" }</code></pre>
 
   <h3>2. Get the list of events</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/events/public</span></p>
   <p>Returns all events where volunteers can register or that are upcoming/ongoing.</p>
-  <pre><code>curl https://seva.harekrishnavizag.org/api/events/public</code></pre>
+  <pre><code>curl https://vcc-client.vercel.app/api/events/public</code></pre>
   <pre><code>{
   "events": [
     {
@@ -131,7 +131,7 @@
   "skills": ["it", "photography"]
 }</code></pre>
   <p><b>Required:</b> <code>eventId</code>, <code>name</code>, <code>phone</code>. All else optional. Skills: <code>medical, photography, videography, driving, electrical, sound, it, graphic_design, cooking, crowd_management, other</code>.</p>
-  <pre><code>curl -X POST https://seva.harekrishnavizag.org/api/registrations ^
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/registrations ^
   -H "Content-Type: application/json" ^
   -d "{\"eventId\":\"6a7717364ae497f56781ce9b\",\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"</code></pre>
   <div class="note">Tip: on Windows, put the JSON in a file <code>body.json</code> and use <code>-d "@body.json"</code> instead of escaping quotes.</div>
@@ -157,13 +157,13 @@
 
   <h3>4. Look up a volunteer by phone (optional)</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></p>
-  <pre><code>curl https://seva.harekrishnavizag.org/api/volunteers/by-phone/9876543210</code></pre>
+  <pre><code>curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210</code></pre>
   <p>200 → <code>{ "volunteer": { ... } }</code> &nbsp;&middot;&nbsp; 404 → <code>{ "message": "Volunteer not found" }</code></p>
 
   <h3>5. Show assigned work ("My Seva")</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/seva/:token</span></p>
   <p>Returns the volunteer's profile + all registrations with event, assigned service, and coordinator contact.</p>
-  <pre><code>curl https://seva.harekrishnavizag.org/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653</code></pre>
+  <pre><code>curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653</code></pre>
   <pre><code>{
   "volunteer": { "name": "Rama Das", "volunteerNumber": "HKV-00007", "phone": "9876543210" },
   "registrations": [
@@ -183,7 +183,7 @@
   <h3>6. Send login OTP</h3>
   <p><span class="method">POST</span> <span class="endpoint">/api/seva/send-otp</span></p>
   <pre><code>{ "phone": "9876543210" }</code></pre>
-  <pre><code>curl -X POST https://seva.harekrishnavizag.org/api/seva/send-otp ^
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/seva/send-otp ^
   -H "Content-Type: application/json" ^
   -d "{\"phone\":\"9876543210\"}"</code></pre>
   <p>200 → <code>{ "message": "OTP sent successfully" }</code><br>
@@ -196,7 +196,7 @@
 
   <h3>Bonus — Confirm / Decline a seva</h3>
   <p><span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/confirm</span> &nbsp;&middot;&nbsp; <span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/decline</span></p>
-  <pre><code>curl -X PUT https://seva.harekrishnavizag.org/api/seva/6a796695123edd9fb32a061b/confirm</code></pre>
+  <pre><code>curl -X PUT https://vcc-client.vercel.app/api/seva/6a796695123edd9fb32a061b/confirm</code></pre>
   <pre><code>{ "message": "Seva confirmed", "registration": { "status": "confirmed", ... } }</code></pre>
   <p>Confirm allowed when status is <code>assigned</code> or <code>registered</code>. Decline blocked when <code>attended</code>/<code>no_show</code>/<code>cancelled</code>.</p>
 </section>
@@ -274,9 +274,9 @@
 <section id="links">
   <h2>Part 6 — Registration Links (website)</h2>
   <ul>
-    <li>Events list: <code>https://seva.harekrishnavizag.org/events</code></li>
-    <li>Register for Janmashtami (currently open): <code>https://seva.harekrishnavizag.org/events/sri-krishna-janmashtami-2026/register</code></li>
-    <li>My Seva (phone + OTP): <code>https://seva.harekrishnavizag.org/my-seva</code></li>
+    <li>Events list: <code>https://vcc-client.vercel.app/events</code></li>
+    <li>Register for Janmashtami (currently open): <code>https://vcc-client.vercel.app/events/sri-krishna-janmashtami-2026/register</code></li>
+    <li>My Seva (phone + OTP): <code>https://vcc-client.vercel.app/my-seva</code></li>
   </ul>
   <p>Mobile and website registrations go into the <b>same database</b> — same volunteer appears in admin either way.</p>
 </section>

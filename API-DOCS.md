@@ -39,11 +39,11 @@ Everything below goes against one of these base URLs:
 
 | Environment | Base URL |
 |-------------|----------|
-| **Production (live)** | `https://seva.harekrishnavizag.org` |
+| **Production (live)** | `https://vcc-client.vercel.app` |
 | **Local development** | `http://localhost:3000` |
 
 Example: the events endpoint in production is
-`https://seva.harekrishnavizag.org/api/events/public`
+`https://vcc-client.vercel.app/api/events/public`
 
 ### What is curl?
 
@@ -52,7 +52,7 @@ Example: the events endpoint in production is
 On Windows, open **Command Prompt (cmd)** or **PowerShell** and type the command. Example:
 
 ```
-curl https://seva.harekrishnavizag.org/api/health
+curl https://vcc-client.vercel.app/api/health
 ```
 
 This "asks" the server if it's alive, and the server answers back with JSON.
@@ -81,7 +81,7 @@ Your app has exactly 7 jobs. Here they are, one by one.
 
 **curl:**
 ```
-curl https://seva.harekrishnavizag.org/api/health
+curl https://vcc-client.vercel.app/api/health
 ```
 
 **Response (200):**
@@ -103,7 +103,7 @@ Returns all events where volunteers can register or that are upcoming/ongoing.
 
 **curl:**
 ```
-curl https://seva.harekrishnavizag.org/api/events/public
+curl https://vcc-client.vercel.app/api/events/public
 ```
 
 **Response (200):**
@@ -168,14 +168,14 @@ This is the **most important endpoint**. It does three things automatically:
 
 **curl (Windows cmd):**
 ```
-curl -X POST https://seva.harekrishnavizag.org/api/registrations ^
+curl -X POST https://vcc-client.vercel.app/api/registrations ^
   -H "Content-Type: application/json" ^
   -d "{\"eventId\":\"6a7717364ae497f56781ce9b\",\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"
 ```
 
 > Tip: on Windows, escaping quotes is painful. Put the JSON in a file (`body.json`) and use:
 > ```
-> curl -X POST https://seva.harekrishnavizag.org/api/registrations -H "Content-Type: application/json" -d "@body.json"
+> curl -X POST https://vcc-client.vercel.app/api/registrations -H "Content-Type: application/json" -d "@body.json"
 > ```
 
 **Response (201 — created):**
@@ -222,7 +222,7 @@ Lets the app check whether a phone number already belongs to a registered volunt
 
 **curl:**
 ```
-curl https://seva.harekrishnavizag.org/api/volunteers/by-phone/9876543210
+curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210
 ```
 
 **Response (200):**
@@ -247,7 +247,7 @@ Given the volunteer's **seva token**, returns their profile plus **all their reg
 
 **curl:**
 ```
-curl https://seva.harekrishnavizag.org/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653
+curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653
 ```
 
 **Response (200):**
@@ -304,7 +304,7 @@ Sends a 6-digit code to the volunteer's phone (for "log in with phone" flows). C
 
 **curl:**
 ```
-curl -X POST https://seva.harekrishnavizag.org/api/seva/send-otp ^
+curl -X POST https://vcc-client.vercel.app/api/seva/send-otp ^
   -H "Content-Type: application/json" ^
   -d "{\"phone\":\"9876543210\"}"
 ```
@@ -335,7 +335,7 @@ Checks the OTP, marks it used, and returns the same data as Step 5 (volunteer pr
 
 **curl:**
 ```
-curl -X POST https://seva.harekrishnavizag.org/api/seva/verify-otp ^
+curl -X POST https://vcc-client.vercel.app/api/seva/verify-otp ^
   -H "Content-Type: application/json" ^
   -d "{\"phone\":\"9876543210\",\"otp\":\"123456\"}"
 ```
@@ -359,7 +359,7 @@ The `:registrationId` is the registration's `_id` (from the "My Seva" response a
 
 **curl:**
 ```
-curl -X PUT https://seva.harekrishnavizag.org/api/seva/6a796695123edd9fb32a061b/confirm
+curl -X PUT https://vcc-client.vercel.app/api/seva/6a796695123edd9fb32a061b/confirm
 ```
 
 **Response (200):**
@@ -473,10 +473,10 @@ All errors come back in the same shape, with an HTTP status code:
 
 Volunteers can also register on the website — same data, same database, same person appears in admin either way.
 
-- **Events list:** `https://seva.harekrishnavizag.org/events`
+- **Events list:** `https://vcc-client.vercel.app/events`
 - **Direct registration for the current open event (Janmashtami):**
-  `https://seva.harekrishnavizag.org/events/sri-krishna-janmashtami-2026/register`
-- **"My Seva" (see assigned work by phone+OTP):** `https://seva.harekrishnavizag.org/my-seva`
+  `https://vcc-client.vercel.app/events/sri-krishna-janmashtami-2026/register`
+- **"My Seva" (see assigned work by phone+OTP):** `https://vcc-client.vercel.app/my-seva`
 
 ---
 
