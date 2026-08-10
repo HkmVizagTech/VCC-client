@@ -48,6 +48,7 @@ import {
   CalendarClock,
   MapPin,
   Users,
+  Copy,
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
 
@@ -292,6 +293,18 @@ export default function EventDetailPage() {
     setDialogOpen(true);
   };
 
+  const copyRegistrationLink = async () => {
+    if (!event) return;
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/events/${event.slug}/register`
+      );
+      toast.success("Registration link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -343,23 +356,34 @@ export default function EventDetailPage() {
           </div>
           {event &&
             (canManage ? (
-              <Select
-                value={event.status}
-                onValueChange={(v) => {
-                  if (v && v !== event.status) handleStatusChange(v);
-                }}
-              >
-                <SelectTrigger className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EVENT_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {statusLabels[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyRegistrationLink}
+                  title="Copy registration link"
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy Link
+                </Button>
+                <Select
+                  value={event.status}
+                  onValueChange={(v) => {
+                    if (v && v !== event.status) handleStatusChange(v);
+                  }}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {statusLabels[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : (
               <Badge variant="outline">
                 {statusLabels[event.status] || event.status}

@@ -48,6 +48,7 @@ import {
   Pencil,
   Trash2,
   ListTree,
+  Copy,
 } from "lucide-react";
 
 const EVENT_STATUSES = [
@@ -270,6 +271,17 @@ export default function EventsPage() {
   const openCreate = () => {
     fetchCoordinators();
     setDialogOpen(true);
+  };
+
+  const copyRegistrationLink = async (event: EventItem) => {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/events/${event.slug}/register`
+      );
+      toast.success("Registration link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
   };
 
   return (
@@ -515,6 +527,14 @@ export default function EventsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => copyRegistrationLink(event)}
+                          title="Copy registration link"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
