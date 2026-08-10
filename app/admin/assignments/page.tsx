@@ -37,6 +37,7 @@ import {
   UserCheck,
   Loader2,
 } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
@@ -346,6 +347,11 @@ export default function AssignmentsPage() {
             Assign volunteers to services for an event
           </p>
         </div>
+        <RefreshButton
+          onRefresh={fetchEventData}
+          loading={loading}
+          title="Refresh assignments"
+        />
       </div>
 
       {/* Event selector */}

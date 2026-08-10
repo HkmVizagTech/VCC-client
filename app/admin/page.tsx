@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Users, Calendar, ClipboardList, UserCheck } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 interface DashboardStats {
   totalVolunteers: number;
@@ -38,24 +39,26 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await authFetch("/api/stats/dashboard");
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        } else {
-          toast.error("Failed to load dashboard stats");
-        }
-      } catch {
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch("/api/stats/dashboard");
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      } else {
         toast.error("Failed to load dashboard stats");
-      } finally {
-        setLoading(false);
       }
+    } catch {
+      toast.error("Failed to load dashboard stats");
+    } finally {
+      setLoading(false);
     }
-    fetchStats();
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   if (loading) {
     return (
@@ -126,11 +129,18 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {user?.name || "Admin"}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back, {user?.name || "Admin"}
+          </p>
+        </div>
+        <RefreshButton
+          onRefresh={fetchStats}
+          loading={loading}
+          title="Refresh dashboard stats"
+        />
       </div>
 
       {/* Stat Cards */}

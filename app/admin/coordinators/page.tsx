@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, UserCog, Pencil, ShieldCheck, ShieldOff } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 interface Coordinator {
   _id: string;
@@ -209,6 +210,12 @@ export default function CoordinatorsPage() {
             Manage event and service coordinators
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <RefreshButton
+          onRefresh={fetchCoordinators}
+          loading={loading}
+          title="Refresh coordinators"
+        />
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -308,6 +315,7 @@ export default function CoordinatorsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (

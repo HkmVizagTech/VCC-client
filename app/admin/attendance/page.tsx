@@ -31,6 +31,7 @@ import {
   UserX,
   ClipboardList,
 } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 // --- Types ---
 
@@ -314,11 +315,18 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Attendance</h1>
-        <p className="text-sm text-muted-foreground">
-          Track volunteer check-ins for events
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Attendance</h1>
+          <p className="text-sm text-muted-foreground">
+            Track volunteer check-ins for events
+          </p>
+        </div>
+        <RefreshButton
+          onRefresh={fetchRegistrations}
+          loading={loadingRegistrations}
+          title="Refresh attendance data"
+        />
       </div>
 
       {/* Event selector */}

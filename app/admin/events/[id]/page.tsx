@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
+import { RefreshButton } from "@/components/refresh-button";
 
 const EVENT_STATUSES = [
   "draft",
@@ -400,6 +401,13 @@ export default function EventDetailPage() {
           <ListTree className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-bold">Services</h2>
           <Badge variant="secondary">{services.length}</Badge>
+          <RefreshButton
+            onRefresh={fetchData}
+            loading={loading}
+            variant="ghost"
+            size="icon"
+            title="Refresh services"
+          />
         </div>
         {canManage && (
           <Dialog

@@ -40,6 +40,7 @@ import {
   type CustomFieldAnswers,
 } from "@/components/custom-fields-renderer";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
+import { RefreshButton } from "@/components/refresh-button";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
 
@@ -327,6 +328,13 @@ export function RegistrationsSection({
               ? filteredRegistrations.length
               : registrations.length}
           </Badge>
+          <RefreshButton
+            onRefresh={fetchRegistrations}
+            loading={loading}
+            variant="ghost"
+            size="icon"
+            title="Refresh registrations"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canManage && (

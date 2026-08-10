@@ -32,6 +32,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Users, Pencil, Search, Copy, Check } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 const SKILLS = [
   "medical",
@@ -245,6 +246,12 @@ export default function VolunteersPage() {
             Registered volunteers across all events
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <RefreshButton
+          onRefresh={fetchVolunteers}
+          loading={loading}
+          title="Refresh volunteers"
+        />
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -388,6 +395,7 @@ export default function VolunteersPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Download, BarChart3, FileSpreadsheet } from "lucide-react";
+import { RefreshButton } from "@/components/refresh-button";
 
 interface EventOption {
   _id: string;
@@ -188,11 +189,18 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          View and export registration data
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Reports</h1>
+          <p className="text-sm text-muted-foreground">
+            View and export registration data
+          </p>
+        </div>
+        <RefreshButton
+          onRefresh={fetchReport}
+          loading={loading}
+          title="Refresh report"
+        />
       </div>
 
       {/* Controls */}

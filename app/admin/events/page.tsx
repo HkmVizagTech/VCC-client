@@ -54,6 +54,7 @@ import {
   CustomFieldsBuilder,
   type CustomFieldDef,
 } from "@/components/custom-fields-builder";
+import { RefreshButton } from "@/components/refresh-button";
 
 const EVENT_STATUSES = [
   "draft",
@@ -313,6 +314,12 @@ export default function EventsPage() {
             Festivals and seva programs
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <RefreshButton
+          onRefresh={fetchEvents}
+          loading={loading}
+          title="Refresh events"
+        />
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -508,6 +515,7 @@ export default function EventsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
