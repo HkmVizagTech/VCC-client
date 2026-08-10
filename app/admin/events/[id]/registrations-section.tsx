@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { authFetch } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,6 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -19,8 +28,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  AvailabilityPicker,
+  availabilitySummary,
+  type AvailabilityValue,
+} from "@/components/availability-picker";
 import { toast } from "sonner";
-import { ClipboardList, UserCheck } from "lucide-react";
+import { ClipboardList, UserCheck, Plus, Loader2 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
@@ -49,6 +63,48 @@ const NEXT_STATUSES: Record<string, string[]> = {
   cancelled: [],
 };
 
+const GENDERS = ["male", "female", "other"] as const;
+
+const SKILLS = [
+  "medical",
+  "photography",
+  "videography",
+  "driving",
+  "electrical",
+  "sound",
+  "it",
+  "graphic_design",
+  "cooking",
+  "crowd_management",
+  "other",
+] as const;
+
+const skillLabels: Record<string, string> = {
+  medical: "Medical",
+  photography: "Photography",
+  videography: "Videography",
+  driving: "Driving",
+  electrical: "Electrical",
+  sound: "Sound",
+  it: "IT / Tech",
+  graphic_design: "Graphic Design",
+  cooking: "Cooking",
+  crowd_management: "Crowd Management",
+  other: "Other",
+};
+
+const emptyForm = {
+  name: "",
+  whatsapp: "",
+  age: "",
+  gender: "",
+  locality: "",
+  occupation: "",
+  skills: [] as string[],
+  availability: { days: [] as string[], timeSlots: [] as string[] },
+  notes: "",
+};
+
 interface RegisteredVolunteer {
   _id: string;
   name: string;
@@ -60,6 +116,7 @@ interface RegisteredVolunteer {
   locality?: string;
   occupation?: string;
   skills?: string[];
+  availability?: AvailabilityValue;
 }
 
 interface Registration {
@@ -88,6 +145,9 @@ export function RegistrationsSection({
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [changingId, setChangingId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchRegistrations = useCallback(async () => {
     setLoading(true);
@@ -153,6 +213,58 @@ export function RegistrationsSection({
     }
   };
 
+  const toggleSkill = (skill: string) => {
+    setForm((prev) => ({
+      ...prev,
+      skills: prev.skills.includes(skill)
+        ? prev.skills.filter((s) => s !== skill)
+        : [...prev.skills, skill],
+    }));
+  };
+
+  const resetForm = () => {
+    setForm(emptyForm);
+  };
+
+  const handleAddRegistration = async () => {
+    if (!form.name || !form.whatsapp) {
+      toast.error("Name and WhatsApp number are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await authFetch("/api/registrations", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId,
+          name: form.name,
+          phone: form.whatsapp,
+          whatsappNumber: form.whatsapp,
+          age: form.age ? Number(form.age) : undefined,
+          gender: form.gender || undefined,
+          locality: form.locality || undefined,
+          occupation: form.occupation || undefined,
+          skills: form.skills,
+          availability: form.availability,
+          notes: form.notes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Volunteer registered");
+        setDialogOpen(false);
+        resetForm();
+        fetchRegistrations();
+      } else {
+        toast.error(data.message || "Something went wrong");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -161,25 +273,170 @@ export function RegistrationsSection({
           <h2 className="text-lg font-bold">Registrations</h2>
           <Badge variant="secondary">{registrations.length}</Badge>
         </div>
-        <Select
-          value={statusFilter || null}
-          onValueChange={(v) => {
-            if (v && v !== "__all") setStatusFilter(v);
-            else setStatusFilter("");
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all">All statuses</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          {canManage && (
+            <Dialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open);
+                if (!open) resetForm();
+              }}
+            >
+              <DialogTrigger render={<Button variant="default" size="sm" />}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Registration
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Register Volunteer</DialogTitle>
+                </DialogHeader>
+                <div className="max-h-[70vh] space-y-4 overflow-y-auto py-2 pr-1">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Full Name *</Label>
+                      <Input
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        placeholder="Volunteer's name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>WhatsApp Number *</Label>
+                      <Input
+                        type="tel"
+                        value={form.whatsapp}
+                        onChange={(e) =>
+                          setForm({ ...form, whatsapp: e.target.value })
+                        }
+                        placeholder="+91 9876543210"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Age</Label>
+                      <Input
+                        type="number"
+                        min={13}
+                        max={100}
+                        value={form.age}
+                        onChange={(e) =>
+                          setForm({ ...form, age: e.target.value })
+                        }
+                        placeholder="e.g. 25"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Gender</Label>
+                      <Select
+                        value={form.gender || null}
+                        onValueChange={(v) => {
+                          if (v) setForm({ ...form, gender: v });
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GENDERS.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g.charAt(0).toUpperCase() + g.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Locality / Area</Label>
+                      <Input
+                        value={form.locality}
+                        onChange={(e) =>
+                          setForm({ ...form, locality: e.target.value })
+                        }
+                        placeholder="e.g. MVP Colony"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Occupation</Label>
+                      <Input
+                        value={form.occupation}
+                        onChange={(e) =>
+                          setForm({ ...form, occupation: e.target.value })
+                        }
+                        placeholder="e.g. Student"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Skills</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {SKILLS.map((skill) => {
+                        const active = form.skills.includes(skill);
+                        return (
+                          <button
+                            key={skill}
+                            type="button"
+                            onClick={() => toggleSkill(skill)}
+                            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              active
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-input bg-transparent text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            {skillLabels[skill]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <AvailabilityPicker
+                    value={form.availability}
+                    onChange={(availability) =>
+                      setForm({ ...form, availability })
+                    }
+                  />
+                  <Button
+                    className="w-full"
+                    onClick={handleAddRegistration}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Registering...
+                      </>
+                    ) : (
+                      "Register Volunteer"
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          <Select
+            value={statusFilter || null}
+            onValueChange={(v) => {
+              if (v && v !== "__all") setStatusFilter(v);
+              else setStatusFilter("");
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All statuses</SelectItem>
+              {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {loading ? (
@@ -204,7 +461,8 @@ export function RegistrationsSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Volunteer</TableHead>
-                <TableHead>Phone</TableHead>
+                <TableHead>WhatsApp</TableHead>
+                <TableHead>Availability</TableHead>
                 <TableHead>Skills</TableHead>
                 {canManage && <TableHead>Service</TableHead>}
                 <TableHead>Status</TableHead>
@@ -215,6 +473,7 @@ export function RegistrationsSection({
               {registrations.map((reg) => {
                 const vol = reg.volunteerId;
                 const next = NEXT_STATUSES[reg.status] || [];
+                const availability = availabilitySummary(vol?.availability);
                 return (
                   <TableRow key={reg._id}>
                     <TableCell>
@@ -223,14 +482,13 @@ export function RegistrationsSection({
                         {vol?.volunteerNumber || "—"}
                       </div>
                     </TableCell>
+                    <TableCell>{vol?.phone || "—"}</TableCell>
                     <TableCell>
-                      {vol?.phone || "—"}
-                      {vol?.whatsappNumber &&
-                        vol.whatsappNumber !== vol.phone && (
-                          <div className="text-xs text-muted-foreground">
-                            WA: {vol.whatsappNumber}
-                          </div>
-                        )}
+                      {availability ? (
+                        <span className="text-xs">{availability}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {(vol?.skills || []).length === 0 ? (

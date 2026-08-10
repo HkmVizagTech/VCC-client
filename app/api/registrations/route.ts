@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
-    const { eventId, name, phone, whatsappNumber, age, gender, locality, occupation, skills, notes } = body;
+    const { eventId, name, phone, whatsappNumber, age, gender, locality, occupation, skills, availability, notes } = body;
 
     if (!eventId || !name || !phone) {
       return NextResponse.json(
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         locality,
         occupation,
         skills: skills || [],
+        availability,
         notes,
         volunteerNumber,
         sevaToken,

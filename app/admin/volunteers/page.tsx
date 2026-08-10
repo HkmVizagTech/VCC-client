@@ -30,6 +30,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  AvailabilityPicker,
+  type AvailabilityValue,
+} from "@/components/availability-picker";
 import { toast } from "sonner";
 import { Plus, Users, Pencil, Search, Copy, Check } from "lucide-react";
 
@@ -74,6 +78,7 @@ interface Volunteer {
   locality?: string;
   occupation?: string;
   skills?: string[];
+  availability?: AvailabilityValue;
   sevaToken?: string;
   notes?: string;
   createdAt: string;
@@ -81,13 +86,13 @@ interface Volunteer {
 
 const emptyForm = {
   name: "",
-  phone: "",
-  whatsappNumber: "",
+  whatsapp: "",
   age: "",
   gender: "",
   locality: "",
   occupation: "",
   skills: [] as string[],
+  availability: { days: [] as string[], timeSlots: [] as string[] },
   notes: "",
 };
 
@@ -159,8 +164,8 @@ export default function VolunteersPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.phone) {
-      toast.error("Name and phone are required");
+    if (!form.name || !form.whatsapp) {
+      toast.error("Name and WhatsApp number are required");
       return;
     }
     setSubmitting(true);
@@ -169,13 +174,14 @@ export default function VolunteersPage() {
       const method = editing ? "PUT" : "POST";
       const body = {
         name: form.name,
-        phone: form.phone,
-        whatsappNumber: form.whatsappNumber || undefined,
+        phone: form.whatsapp,
+        whatsappNumber: form.whatsapp,
         age: form.age ? Number(form.age) : undefined,
         gender: form.gender || undefined,
         locality: form.locality || undefined,
         occupation: form.occupation || undefined,
         skills: form.skills,
+        availability: form.availability,
         notes: form.notes || undefined,
       };
       const res = await authFetch(url, {
@@ -202,13 +208,16 @@ export default function VolunteersPage() {
     setEditing(v);
     setForm({
       name: v.name,
-      phone: v.phone,
-      whatsappNumber: v.whatsappNumber || "",
+      whatsapp: v.phone,
       age: v.age !== undefined ? String(v.age) : "",
       gender: v.gender || "",
       locality: v.locality || "",
       occupation: v.occupation || "",
       skills: v.skills || [],
+      availability: v.availability || {
+        days: [],
+        timeSlots: [],
+      },
       notes: v.notes || "",
     });
     setDialogOpen(true);
@@ -277,12 +286,12 @@ export default function VolunteersPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label>WhatsApp Number</Label>
                   <Input
                     type="tel"
-                    value={form.phone}
+                    value={form.whatsapp}
                     onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
+                      setForm({ ...form, whatsapp: e.target.value })
                     }
                     placeholder="+91 9876543210"
                     disabled={!!editing}
@@ -290,17 +299,6 @@ export default function VolunteersPage() {
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>WhatsApp Number</Label>
-                  <Input
-                    type="tel"
-                    value={form.whatsappNumber}
-                    onChange={(e) =>
-                      setForm({ ...form, whatsappNumber: e.target.value })
-                    }
-                    placeholder="Same as phone if blank"
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label>Age</Label>
                   <Input
@@ -377,6 +375,12 @@ export default function VolunteersPage() {
                   })}
                 </div>
               </div>
+              <AvailabilityPicker
+                value={form.availability}
+                onChange={(availability) =>
+                  setForm({ ...form, availability })
+                }
+              />
               <div className="space-y-2">
                 <Label>Notes</Label>
                 <Textarea
@@ -408,7 +412,7 @@ export default function VolunteersPage() {
           <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-8"
-            placeholder="Search by name, phone or locality..."
+            placeholder="Search by name, number or locality..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
@@ -476,7 +480,7 @@ export default function VolunteersPage() {
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
+                <TableHead>WhatsApp</TableHead>
                 <TableHead>Age</TableHead>
                 <TableHead>Gender</TableHead>
                 <TableHead>Locality</TableHead>

@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AvailabilityPicker,
+} from "@/components/availability-picker";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -57,13 +60,13 @@ const skillLabels: Record<string, string> = {
 
 const emptyForm = {
   name: "",
-  phone: "",
-  whatsappNumber: "",
+  whatsapp: "",
   age: "",
   gender: "",
   locality: "",
   occupation: "",
   skills: [] as string[],
+  availability: { days: [] as string[], timeSlots: [] as string[] },
   notes: "",
 };
 
@@ -130,7 +133,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
-    if (!form.name || !form.phone) {
+    if (!form.name || !form.whatsapp) {
       setSuccess(null);
       return;
     }
@@ -142,13 +145,14 @@ export default function RegisterPage() {
         body: JSON.stringify({
           eventId: event._id,
           name: form.name,
-          phone: form.phone,
-          whatsappNumber: form.whatsappNumber || undefined,
+          phone: form.whatsapp,
+          whatsappNumber: form.whatsapp,
           age: form.age ? Number(form.age) : undefined,
           gender: form.gender || undefined,
           locality: form.locality || undefined,
           occupation: form.occupation || undefined,
           skills: form.skills,
+          availability: form.availability,
           notes: form.notes || undefined,
         }),
       });
@@ -357,13 +361,13 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="whatsapp">WhatsApp Number *</Label>
                   <Input
-                    id="phone"
+                    id="whatsapp"
                     type="tel"
-                    value={form.phone}
+                    value={form.whatsapp}
                     onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
+                      setForm({ ...form, whatsapp: e.target.value })
                     }
                     placeholder="+91 9876543210"
                     required
@@ -371,19 +375,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="whatsapp">WhatsApp Number</Label>
-                  <Input
-                    id="whatsapp"
-                    type="tel"
-                    value={form.whatsappNumber}
-                    onChange={(e) =>
-                      setForm({ ...form, whatsappNumber: e.target.value })
-                    }
-                    placeholder="Same as phone if blank"
-                  />
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="age">Age</Label>
                   <Input
@@ -466,13 +458,20 @@ export default function RegisterPage() {
                 </div>
               </div>
 
+              <AvailabilityPicker
+                value={form.availability}
+                onChange={(availability) =>
+                  setForm({ ...form, availability })
+                }
+              />
+
               <div className="space-y-2">
                 <Label htmlFor="notes">Anything else?</Label>
                 <Textarea
                   id="notes"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Allergies, availability, or other notes"
+                  placeholder="Allergies, or other notes"
                 />
               </div>
 
