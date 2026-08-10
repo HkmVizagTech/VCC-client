@@ -1,21 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { API_URL } from "@/lib/api";
 import { CalendarDays, MapPin, ArrowRight } from "lucide-react";
+import { connectDB } from "@/lib/db";
+import { Event } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
-
-interface PublicEvent {
-  _id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  venue?: string;
-  bannerImage?: string;
-  eventStart: string;
-  eventEnd: string;
-  status: string;
-}
 
 const statusLabels: Record<string, string> = {
   registration_open: "Registrations Open",
@@ -23,14 +12,15 @@ const statusLabels: Record<string, string> = {
   ongoing: "Ongoing",
 };
 
-async function getEvents(): Promise<PublicEvent[]> {
+async function getEvents() {
   try {
-    const res = await fetch(`${API_URL}/api/events/public`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.events || [];
+    await connectDB();
+    const events = await Event.find({
+      status: { $in: ["registration_open", "registration_closed", "ongoing"] },
+    })
+      .sort({ eventStart: 1 })
+      .lean();
+    return JSON.parse(JSON.stringify(events));
   } catch {
     return [];
   }
@@ -81,7 +71,7 @@ export default async function PublicEventsPage() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2">
-            {events.map((event) => (
+            {events.map((event: any) => (
               <Link
                 key={event._id}
                 href={`/events/${event.slug}`}

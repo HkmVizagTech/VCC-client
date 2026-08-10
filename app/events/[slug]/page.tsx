@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { API_URL } from "@/lib/api";
 import {
   ArrowLeft,
   CalendarDays,
@@ -9,23 +8,10 @@ import {
   Clock,
   CalendarCheck,
 } from "lucide-react";
+import { connectDB } from "@/lib/db";
+import { Event } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
-
-interface PublicEventDetail {
-  _id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  venue?: string;
-  bannerImage?: string;
-  registrationStart?: string;
-  registrationEnd?: string;
-  eventStart: string;
-  eventEnd: string;
-  status: string;
-  coordinatorId?: { name: string } | null;
-}
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -36,14 +22,13 @@ const statusLabels: Record<string, string> = {
   archived: "Archived",
 };
 
-async function getEvent(slug: string): Promise<PublicEventDetail | null> {
+async function getEvent(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/api/events/public/${slug}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.event || null;
+    await connectDB();
+    const event = await Event.findOne({ slug })
+      .populate("coordinatorId", "name email")
+      .lean();
+    return event ? JSON.parse(JSON.stringify(event)) : null;
   } catch {
     return null;
   }

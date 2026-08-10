@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VCC API Reference — HKM Volunteer Mobile App</title>
+<style>
+  :root { --accent:#d97706; --dark:#1c1917; --bg:#faf7f2; --card:#ffffff; --border:#e7e5e4; --code-bg:#292524; --code-fg:#e7e5e4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--dark); line-height: 1.6; }
+  header { background: linear-gradient(135deg, #1c1917, #44403c); color: #fff; padding: 40px 20px; text-align: center; }
+  header h1 { font-size: 1.8rem; margin-bottom: 6px; }
+  header p { color: #d6d3d1; font-size: .95rem; }
+  header .badge { display:inline-block; background: var(--accent); color:#fff; border-radius:999px; padding:3px 14px; font-size:.8rem; margin-top:10px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  section { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:22px 24px; margin-bottom:22px; }
+  h2 { font-size: 1.35rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 3px solid var(--accent); color: #292524; }
+  h3 { font-size: 1.05rem; margin: 16px 0 6px; color: #44403c; }
+  p, li { font-size: .95rem; }
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .88rem; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f0e8; }
+  code { font-family: "Cascadia Code", Consolas, Menlo, monospace; font-size: .85em; background: #f5f0e8; padding: 2px 6px; border-radius: 4px; }
+  pre { background: var(--code-bg); color: var(--code-fg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 10px 0; font-size: .85rem; line-height: 1.5; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .method { font-weight: 700; color: var(--accent); }
+  .endpoint { font-family: Consolas, monospace; }
+  .note { background:#fffbeb; border-left:4px solid var(--accent); padding:10px 14px; border-radius:6px; margin:10px 0; font-size:.9rem; }
+  .toc { columns: 2; font-size: .92rem; }
+  .toc a { color: #b45309; text-decoration: none; }
+  footer { text-align: center; color: #a8a29e; font-size: .85rem; padding: 20px; }
+  @media (max-width: 640px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>VCC API Reference</h1>
+  <p>Hare Krishna Movement Visakhapatnam &mdash; Volunteer Mobile App Integration</p>
+  <span class="badge">Version 1.0 &middot; Merged single-app deployment</span>
+</header>
+
+<main>
+
+<nav class="toc">
+  <a href="#basics">1. The Basics</a>
+  <a href="#mobile">2. Mobile Endpoints (7 calls)</a>
+  <a href="#lifecycle">3. Status Lifecycle</a>
+  <a href="#full">4. Full Endpoint List</a>
+  <a href="#errors">5. Error Handling</a>
+  <a href="#links">6. Registration Links</a>
+  <a href="#limits">7. Known Limitations</a>
+</nav>
+
+<section id="basics">
+  <h2>Part 1 — The Basics</h2>
+  <p>An <b>API</b> is a set of addresses on a server. Your app sends a <i>request</i> and the server returns a <i>response</i> (JSON). Think of it like a waiter: you order, the waiter brings the result.</p>
+
+  <h3>Key words</h3>
+  <table>
+    <tr><th>Word</th><th>Meaning</th></tr>
+    <tr><td><b>Base URL</b></td><td>The server address. Every endpoint starts with it.</td></tr>
+    <tr><td><b>Endpoint</b></td><td>A specific address + action, e.g. <code>POST /api/registrations</code></td></tr>
+    <tr><td><b>GET</b></td><td>Fetch / read something. No body.</td></tr>
+    <tr><td><b>POST</b></td><td>Create something new.</td></tr>
+    <tr><td><b>PUT</b></td><td>Update something.</td></tr>
+    <tr><td><b>Request body</b></td><td>The JSON data sent with POST/PUT.</td></tr>
+    <tr><td><b>Response</b></td><td>The JSON returned by the server.</td></tr>
+    <tr><td><b>JSON</b></td><td>Text data as <code>"key": "value"</code> pairs.</td></tr>
+    <tr><td><b>Status code</b></td><td>200 ok &middot; 201 created &middot; 400 bad request &middot; 404 not found &middot; 409 already exists &middot; 500 server error</td></tr>
+    <tr><td><b>Token</b></td><td>Secret string identifying a volunteer (like a password).</td></tr>
+    <tr><td><b>OTP</b></td><td>6-digit One-Time Password for phone login.</td></tr>
+  </table>
+
+  <h3>Base URL</h3>
+  <table>
+    <tr><th>Environment</th><th>Base URL</th></tr>
+    <tr><td><b>Production</b></td><td><code>https://seva.harekrishnavizag.org</code></td></tr>
+    <tr><td><b>Local dev</b></td><td><code>http://localhost:3000</code></td></tr>
+  </table>
+
+  <h3>What is curl?</h3>
+  <p><b>curl</b> is a command-line tool (built into Windows 10/11, macOS, Linux) to test API calls. On Windows open <b>Command Prompt</b> and type the command. Example:</p>
+  <pre><code>curl https://seva.harekrishnavizag.org/api/health</code></pre>
+
+  <h3>Authentication</h3>
+  <p>All <b>mobile</b> endpoints are public — no login. Admin endpoints need a JWT token sent as a header: <code>Authorization: Bearer &lt;token&gt;</code>. The mobile app never needs this.</p>
+</section>
+
+<section id="mobile">
+  <h2>Part 2 — Mobile Endpoints (7 calls your app needs)</h2>
+
+  <h3>1. Check the server is alive</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/health</span></p>
+  <pre><code>curl https://seva.harekrishnavizag.org/api/health</code></pre>
+  <pre><code>{ "status": "ok", "timestamp": "2026-08-10T05:49:57.101Z", "mongodb": "connected" }</code></pre>
+
+  <h3>2. Get the list of events</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/events/public</span></p>
+  <p>Returns all events where volunteers can register or that are upcoming/ongoing.</p>
+  <pre><code>curl https://seva.harekrishnavizag.org/api/events/public</code></pre>
+  <pre><code>{
+  "events": [
+    {
+      "_id": "6a7717364ae497f56781ce9b",
+      "name": "Sri Krishna Janmashtami 2026",
+      "slug": "sri-krishna-janmashtami-2026",
+      "venue": "Gadiraju convention centre",
+      "registrationEnd": "2026-08-21T04:16:00.000Z",
+      "eventStart": "2026-09-04T04:16:00.000Z",
+      "eventEnd": "2026-09-08T04:16:00.000Z",
+      "status": "registration_open",
+      "coordinatorId": { "name": "chaitanya", "email": "..." }
+    }
+  ]
+}</code></pre>
+  <p>Show events with <code>status: "registration_open"</code> as "Register now". Use <code>_id</code> as <code>eventId</code> in registration.</p>
+
+  <h3>3. Register a volunteer</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/registrations</span> &nbsp;— <b>most important endpoint</b></p>
+  <p>Automatically: finds the volunteer by phone (reuses existing profile if returning) &rarr; creates new profile with HKV number + seva token if new &rarr; creates the registration.</p>
+  <pre><code>{
+  "eventId": "6a7717364ae497f56781ce9b",
+  "name": "Rama Das",
+  "phone": "9876543210",
+  "whatsappNumber": "9876543210",
+  "age": 28,
+  "gender": "male",
+  "locality": "Dwaraka Nagar",
+  "occupation": "Software Engineer",
+  "skills": ["it", "photography"]
+}</code></pre>
+  <p><b>Required:</b> <code>eventId</code>, <code>name</code>, <code>phone</code>. All else optional. Skills: <code>medical, photography, videography, driving, electrical, sound, it, graphic_design, cooking, crowd_management, other</code>.</p>
+  <pre><code>curl -X POST https://seva.harekrishnavizag.org/api/registrations ^
+  -H "Content-Type: application/json" ^
+  -d "{\"eventId\":\"6a7717364ae497f56781ce9b\",\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"</code></pre>
+  <div class="note">Tip: on Windows, put the JSON in a file <code>body.json</code> and use <code>-d "@body.json"</code> instead of escaping quotes.</div>
+  <p><b>Response 201:</b></p>
+  <pre><code>{
+  "message": "Registration successful",
+  "registration": { "eventId": "...", "volunteerId": "...", "status": "registered", "_id": "..." },
+  "volunteer": {
+    "_id": "...",
+    "name": "Rama Das",
+    "volunteerNumber": "HKV-00007",
+    "sevaToken": "79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653"
+  }
+}</code></pre>
+  <p><b>Save the <code>sevaToken</code></b> — the app can store it to show "My Seva" without OTP.</p>
+  <table>
+    <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
+    <tr><td>400</td><td>Registration is not open for this event</td><td>Event not accepting registrations</td></tr>
+    <tr><td>400</td><td>Registration deadline has passed</td><td>Too late</td></tr>
+    <tr><td>404</td><td>Event not found</td><td>Wrong eventId</td></tr>
+    <tr><td>409</td><td>Already registered for this event</td><td>"You're already registered"</td></tr>
+  </table>
+
+  <h3>4. Look up a volunteer by phone (optional)</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></p>
+  <pre><code>curl https://seva.harekrishnavizag.org/api/volunteers/by-phone/9876543210</code></pre>
+  <p>200 → <code>{ "volunteer": { ... } }</code> &nbsp;&middot;&nbsp; 404 → <code>{ "message": "Volunteer not found" }</code></p>
+
+  <h3>5. Show assigned work ("My Seva")</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/seva/:token</span></p>
+  <p>Returns the volunteer's profile + all registrations with event, assigned service, and coordinator contact.</p>
+  <pre><code>curl https://seva.harekrishnavizag.org/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653</code></pre>
+  <pre><code>{
+  "volunteer": { "name": "Rama Das", "volunteerNumber": "HKV-00007", "phone": "9876543210" },
+  "registrations": [
+    {
+      "_id": "6a796695123edd9fb32a061b",
+      "status": "registered",
+      "eventId": { "name": "Sri Krishna Janmashtami 2026", "venue": "...", "status": "registration_open" },
+      "serviceId": {
+        "name": "Parking",
+        "coordinatorId": { "name": "chaitanya", "phone": "..." }
+      }
+    }
+  ]
+}</code></pre>
+  <p>When admin assigns work, <code>serviceId</code> becomes populated. 404 → <code>{ "message": "Invalid seva token" }</code></p>
+
+  <h3>6. Send login OTP</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/seva/send-otp</span></p>
+  <pre><code>{ "phone": "9876543210" }</code></pre>
+  <pre><code>curl -X POST https://seva.harekrishnavizag.org/api/seva/send-otp ^
+  -H "Content-Type: application/json" ^
+  -d "{\"phone\":\"9876543210\"}"</code></pre>
+  <p>200 → <code>{ "message": "OTP sent successfully" }</code><br>
+  404 → no volunteer with this phone &nbsp;&middot;&nbsp; 429 → wait 60 seconds</p>
+
+  <h3>7. Verify OTP → get seva data</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/seva/verify-otp</span></p>
+  <pre><code>{ "phone": "9876543210", "otp": "123456" }</code></pre>
+  <p>200 → same shape as #5. 400 → <code>{ "message": "Invalid or expired OTP" }</code> (10-min expiry, one-time use).</p>
+
+  <h3>Bonus — Confirm / Decline a seva</h3>
+  <p><span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/confirm</span> &nbsp;&middot;&nbsp; <span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/decline</span></p>
+  <pre><code>curl -X PUT https://seva.harekrishnavizag.org/api/seva/6a796695123edd9fb32a061b/confirm</code></pre>
+  <pre><code>{ "message": "Seva confirmed", "registration": { "status": "confirmed", ... } }</code></pre>
+  <p>Confirm allowed when status is <code>assigned</code> or <code>registered</code>. Decline blocked when <code>attended</code>/<code>no_show</code>/<code>cancelled</code>.</p>
+</section>
+
+<section id="lifecycle">
+  <h2>Part 3 — Status Lifecycle</h2>
+  <pre><code>registered ──▶ assigned ──▶ confirmed ──▶ attended
+      │              │
+      └─▶ cancelled  └─(admin assigns service)─▶ confirmed</code></pre>
+  <table>
+    <tr><th>Status</th><th>Set by</th><th>Meaning</th></tr>
+    <tr><td><code>registered</code></td><td>App / website</td><td>Signed up for event</td></tr>
+    <tr><td><code>assigned</code></td><td>Admin</td><td>Put on a service (Parking, etc.)</td></tr>
+    <tr><td><code>confirmed</code></td><td>Volunteer</td><td>Said yes</td></tr>
+    <tr><td><code>attended</code></td><td>Coordinator</td><td>Showed up</td></tr>
+    <tr><td><code>no_show</code></td><td>Coordinator</td><td>Didn't show</td></tr>
+    <tr><td><code>cancelled</code></td><td>Volunteer / Admin</td><td>Backed out</td></tr>
+  </table>
+  <p>The app only reads these and lets volunteers set <code>confirmed</code> / <code>cancelled</code>.</p>
+</section>
+
+<section id="full">
+  <h2>Part 4 — Full Endpoint List</h2>
+  <h3>Public (mobile + website, no auth)</h3>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/health</td><td>Health check</td></tr>
+    <tr><td>GET</td><td>/api/events/public</td><td>List open/upcoming events</td></tr>
+    <tr><td>GET</td><td>/api/events/public/:slug</td><td>Event by slug</td></tr>
+    <tr><td>POST</td><td>/api/registrations</td><td>Register volunteer</td></tr>
+    <tr><td>GET</td><td>/api/volunteers/by-phone/:phone</td><td>Find by phone</td></tr>
+    <tr><td>GET</td><td>/api/volunteers/by-token/:token</td><td>Find by token</td></tr>
+    <tr><td>GET</td><td>/api/seva/:token</td><td>Volunteer's seva</td></tr>
+    <tr><td>POST</td><td>/api/seva/send-otp</td><td>Send OTP</td></tr>
+    <tr><td>POST</td><td>/api/seva/verify-otp</td><td>Verify OTP</td></tr>
+    <tr><td>PUT</td><td>/api/seva/:id/confirm</td><td>Confirm seva</td></tr>
+    <tr><td>PUT</td><td>/api/seva/:id/decline</td><td>Decline seva</td></tr>
+  </table>
+  <h3>Admin (JWT required — web panel)</h3>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/users/login</td><td>Login → JWT</td></tr>
+    <tr><td>GET</td><td>/api/users/profile</td><td>Current user</td></tr>
+    <tr><td>GET/POST</td><td>/api/users</td><td>List / create coordinators</td></tr>
+    <tr><td>GET/POST</td><td>/api/volunteers</td><td>List / create volunteers</td></tr>
+    <tr><td>GET</td><td>/api/volunteers/search?q=</td><td>Quick search</td></tr>
+    <tr><td>GET/POST</td><td>/api/events</td><td>List / create events</td></tr>
+    <tr><td>PUT</td><td>/api/events/:id/status</td><td>Advance status</td></tr>
+    <tr><td>GET</td><td>/api/services/event/:eventId</td><td>Services for event</td></tr>
+    <tr><td>POST</td><td>/api/services</td><td>Create service</td></tr>
+    <tr><td>GET</td><td>/api/registrations/event/:eventId</td><td>Registrations for event</td></tr>
+    <tr><td>PUT</td><td>/api/registrations/:id/status</td><td>Change status</td></tr>
+    <tr><td>PUT</td><td>/api/registrations/:id/service</td><td>Assign to service</td></tr>
+    <tr><td>PUT</td><td>/api/registrations/bulk-assign</td><td>Bulk assign</td></tr>
+    <tr><td>GET</td><td>/api/stats/dashboard</td><td>Dashboard stats</td></tr>
+    <tr><td>GET</td><td>/api/stats/report</td><td>CSV export data</td></tr>
+  </table>
+</section>
+
+<section id="errors">
+  <h2>Part 5 — Error Handling</h2>
+  <p>Errors always look like <code>{ "message": "explanation" }</code> with an HTTP status code.</p>
+  <table>
+    <tr><th>Status</th><th>When</th><th>App behaviour</th></tr>
+    <tr><td>400</td><td>Bad input / invalid OTP / wrong state</td><td>Show the message</td></tr>
+    <tr><td>401</td><td>Missing/invalid token (admin)</td><td>Go to login</td></tr>
+    <tr><td>403</td><td>Not enough permission</td><td>"Not allowed"</td></tr>
+    <tr><td>404</td><td>Not found</td><td>Friendly not-found</td></tr>
+    <tr><td>409</td><td>Already exists</td><td>"Already registered"</td></tr>
+    <tr><td>429</td><td>Rate limited (OTP)</td><td>Wait 60 seconds</td></tr>
+    <tr><td>500</td><td>Server/database error</td><td>Error screen + retry</td></tr>
+  </table>
+</section>
+
+<section id="links">
+  <h2>Part 6 — Registration Links (website)</h2>
+  <ul>
+    <li>Events list: <code>https://seva.harekrishnavizag.org/events</code></li>
+    <li>Register for Janmashtami (currently open): <code>https://seva.harekrishnavizag.org/events/sri-krishna-janmashtami-2026/register</code></li>
+    <li>My Seva (phone + OTP): <code>https://seva.harekrishnavizag.org/my-seva</code></li>
+  </ul>
+  <p>Mobile and website registrations go into the <b>same database</b> — same volunteer appears in admin either way.</p>
+</section>
+
+<section id="limits">
+  <h2>Part 7 — Known Limitations</h2>
+  <table>
+    <tr><th>Item</th><th>Status</th></tr>
+    <tr><td>OTP delivery (SMS/WhatsApp)</td><td><b>Pending</b> — OTP is logged to server console only. Do not ship SMS in production until wired.</td></tr>
+    <tr><td>Rate limiting on registration</td><td>OTP has 60-sec limit; registration not yet rate-limited.</td></tr>
+    <tr><td>Admin JWT for mobile</td><td>Not needed — mobile uses public endpoints only.</td></tr>
+  </table>
+</section>
+
+</main>
+<footer>VCC API Reference &mdash; Volunteer Care Cell, Hare Krishna Movement Visakhapatnam</footer>
+</body>
+</html>

@@ -42,7 +42,8 @@ export async function authFetch(
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  return fetch(`${API_URL}${path}`, {
+  const url = API_URL ? `${API_URL}${path}` : path;
+  return fetch(url, {
     ...options,
     headers,
     credentials: "include",

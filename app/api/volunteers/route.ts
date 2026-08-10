@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import { connectDB } from "@/lib/db";
+import { Volunteer } from "@/lib/models";
+import { authenticateWithRole } from "@/lib/auth";
+import { generateVolunteerNumber } from "@/lib/utils/volunteer-number";
+
+export async function GET(req: NextRequest) {
+  try {
+    const auth = await authenticateWithRole(req, "event_coordinator");
+    if (auth instanceof NextResponse) return auth;
+
+    await connectDB();
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const search = searchParams.get("search");
+    const skills = searchParams.get("skills");
+    const gender = searchParams.get("gender");
+
+    const filter: any = {};
+    if (search) filter.$text = { $search: search };
+    if (skills) filter.skills = { $in: skills.split(",") };
+    if (gender) filter.gender = gender;
+
+    const [volunteers, total] = await Promise.all([
+      Volunteer.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Volunteer.countDocuments(filter),
+    ]);
+
+    return NextResponse.json({
+      volunteers,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { message: error.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await authenticateWithRole(req, "event_coordinator");
+    if (auth instanceof NextResponse) return auth;
+
+    await connectDB();
+    const body = await req.json();
+
+    if (!body.name || !body.phone) {
+      return NextResponse.json(
+        { message: "Name and phone are required" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await Volunteer.findOne({ phone: body.phone });
+    if (existing) {
+      return NextResponse.json(
+        { message: "Phone number already registered" },
+        { status: 409 }
+      );
+    }
+
+    const volunteerNumber = await generateVolunteerNumber();
+    const sevaToken = crypto.randomBytes(32).toString("hex");
+
+    const volunteer = await Volunteer.create({
+      ...body,
+      volunteerNumber,
+      sevaToken,
+    });
+
+    return NextResponse.json(
+      { message: "Volunteer created", volunteer },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { message: error.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}
