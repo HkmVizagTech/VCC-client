@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import {
   Calendar,
@@ -343,11 +344,11 @@ export default function MySevaTokenPage() {
         <p className="mt-1 max-w-xs text-sm text-muted-foreground">
           {error || "This seva link is invalid or has expired. Please contact the volunteer care cell."}
         </p>
-        <a href="/my-seva">
+        <Link href="/my-seva">
           <Button variant="outline" size="sm" className="mt-6">
             Look up by phone number
           </Button>
-        </a>
+        </Link>
       </div>
     );
   }

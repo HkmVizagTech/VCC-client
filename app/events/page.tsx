@@ -12,7 +12,19 @@ const statusLabels: Record<string, string> = {
   ongoing: "Ongoing",
 };
 
-async function getEvents() {
+async function getEvents(): Promise<
+  {
+    _id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    bannerImage?: string;
+    venue?: string;
+    eventStart: string;
+    eventEnd?: string;
+    status: string;
+  }[]
+> {
   try {
     await connectDB();
     const events = await Event.find({
@@ -71,7 +83,7 @@ export default async function PublicEventsPage() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2">
-            {events.map((event: any) => (
+            {events.map((event) => (
               <Link
                 key={event._id}
                 href={`/events/${event.slug}`}

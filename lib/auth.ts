@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { connectDB } from "./db";
-import { User } from "./models";
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;

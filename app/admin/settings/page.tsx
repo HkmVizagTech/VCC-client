@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Settings, User, Building2, MessageCircle, Info } from "lucide-react";
+import { User, MessageCircle, Info } from "lucide-react";
 
 const whatsappTemplates = [
   {

@@ -10,6 +10,18 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    files: ["app/api/**/*.ts"],
+    rules: {
+      // Migrated Express route handlers use `catch (error: any)` uniformly.
+      "@typescript-eslint/no-explicit-any": "off",
+      // `const { password: _, ...rest }` is the standard way to strip fields.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { varsIgnorePattern: "^_", argsIgnorePattern: "^_" },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

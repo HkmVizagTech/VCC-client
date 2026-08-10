@@ -5,13 +5,18 @@ interface CachedConnection {
   promise: Promise<typeof mongoose> | null;
 }
 
-const cached: CachedConnection = (global as any).__mongoose || {
-  conn: null,
-  promise: null,
-};
+declare global {
+  var __mongoose: CachedConnection | undefined;
+}
 
-if (!(global as any).__mongoose) {
-  (global as any).__mongoose = cached;
+const cached: CachedConnection =
+  global.__mongoose || {
+    conn: null,
+    promise: null,
+  };
+
+if (!global.__mongoose) {
+  global.__mongoose = cached;
 }
 
 export async function connectDB() {
