@@ -31,8 +31,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Users, Pencil, Search, Copy, Check } from "lucide-react";
+import { Plus, Users, Pencil, Search, Copy, Check, Eye } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
+import { VolunteerDetailsDialog } from "@/components/volunteer-details-dialog";
 
 const SKILLS = [
   "medical",
@@ -107,6 +108,7 @@ export default function VolunteersPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Volunteer | null>(null);
 
   const fetchVolunteers = useCallback(async () => {
     setLoading(true);
@@ -531,14 +533,24 @@ export default function VolunteersPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(v)}
-                      title="Edit"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setViewing(v)}
+                        title="View full details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(v)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -575,6 +587,14 @@ export default function VolunteersPage() {
           </div>
         </div>
       )}
+
+      <VolunteerDetailsDialog
+        open={viewing !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewing(null);
+        }}
+        volunteer={viewing}
+      />
     </div>
   );
 }

@@ -41,6 +41,7 @@ import {
 } from "@/components/custom-fields-renderer";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
 import { RefreshButton } from "@/components/refresh-button";
+import { VolunteerDetailsDialog } from "@/components/volunteer-details-dialog";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
 
@@ -121,11 +122,6 @@ interface CustomAnswer {
   value: unknown;
 }
 
-function formatAnswerValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "—";
-  return String(value);
-}
 
 interface RegisteredVolunteer {
   _id: string;
@@ -172,9 +168,7 @@ export function RegistrationsSection({
   eventStart?: string;
   eventEnd?: string;
 }) {
-  const [viewingAnswers, setViewingAnswers] = useState<Registration | null>(
-    null
-  );
+  const [viewingReg, setViewingReg] = useState<Registration | null>(null);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -697,16 +691,14 @@ export function RegistrationsSection({
                     {canManage && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {(reg.customAnswers?.length || 0) > 0 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setViewingAnswers(reg)}
-                              title="View custom answers"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setViewingReg(reg)}
+                            title="View full details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           {next.map((s) => (
                             <Button
                               key={s}
@@ -729,36 +721,14 @@ export function RegistrationsSection({
         </div>
       )}
 
-      <Dialog
-        open={viewingAnswers !== null}
+      <VolunteerDetailsDialog
+        open={viewingReg !== null}
         onOpenChange={(open) => {
-          if (!open) setViewingAnswers(null);
+          if (!open) setViewingReg(null);
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {viewingAnswers?.volunteerId?.name || "Volunteer"} — Custom Answers
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[70vh] space-y-3 overflow-y-auto py-2">
-            {(viewingAnswers?.customAnswers || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No custom answers submitted.
-              </p>
-            ) : (
-              (viewingAnswers?.customAnswers || []).map((a) => (
-                <div key={a.fieldId} className="rounded-md border p-3">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {a.label}
-                  </div>
-                  <div className="mt-1 text-sm">{formatAnswerValue(a.value)}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+        volunteer={viewingReg?.volunteerId || null}
+        focusEventId={eventId}
+      />
     </div>
   );
 }
