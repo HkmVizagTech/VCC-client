@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 import { generateSlug } from "@/lib/utils/slugify";
+import { sanitizeCustomFields } from "@/lib/utils/custom-fields";
 
 export async function GET(req: NextRequest) {
   try {
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     const event = await Event.create({
       ...body,
       slug,
+      customFields: sanitizeCustomFields(body.customFields),
       createdBy: auth.userId,
     });
 

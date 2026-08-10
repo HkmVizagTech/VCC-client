@@ -51,6 +51,7 @@ import {
   Copy,
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
+import type { CustomFieldDef } from "@/components/custom-fields-builder";
 
 const EVENT_STATUSES = [
   "draft",
@@ -96,6 +97,7 @@ interface EventDetail {
   eventStart: string;
   eventEnd: string;
   availabilitySlots?: string[];
+  customFields?: CustomFieldDef[];
   status: string;
 }
 
@@ -611,6 +613,7 @@ export default function EventDetailPage() {
           services={services}
           canManage={canManage}
           availabilitySlots={event?.availabilitySlots || []}
+          customFields={event?.customFields || []}
           eventStart={event?.eventStart}
           eventEnd={event?.eventEnd}
         />

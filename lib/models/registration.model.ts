@@ -16,12 +16,20 @@ export interface ServiceAvailabilityEntry {
   timeSlot: string;
 }
 
+export interface CustomAnswer {
+  fieldId: string;
+  label: string;
+  type: string;
+  value: unknown;
+}
+
 export interface IRegistration extends Document {
   eventId: Types.ObjectId;
   volunteerId: Types.ObjectId;
   serviceId?: Types.ObjectId;
   status: RegistrationStatus;
   serviceAvailability?: ServiceAvailabilityEntry[];
+  customAnswers?: CustomAnswer[];
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -48,6 +56,15 @@ const registrationSchema = new Schema<IRegistration>(
         timeSlot: { type: String, required: true },
       },
     ],
+    customAnswers: [
+      {
+        _id: false,
+        fieldId: { type: String, required: true },
+        label: { type: String, required: true },
+        type: { type: String, required: true },
+        value: { type: Schema.Types.Mixed },
+      },
+    ],
     notes: String,
   },
   { timestamps: true, versionKey: false }
@@ -57,6 +74,11 @@ registrationSchema.index({ eventId: 1, volunteerId: 1 }, { unique: true });
 registrationSchema.index({ eventId: 1, status: 1 });
 registrationSchema.index({ volunteerId: 1 });
 
-export const Registration =
-  mongoose.models.registration ||
-  mongoose.model<IRegistration>("registration", registrationSchema);
+if (mongoose.models.registration) {
+  mongoose.deleteModel("registration");
+}
+
+export const Registration = mongoose.model<IRegistration>(
+  "registration",
+  registrationSchema
+);

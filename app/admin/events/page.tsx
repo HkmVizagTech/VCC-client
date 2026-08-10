@@ -50,6 +50,10 @@ import {
   ListTree,
   Copy,
 } from "lucide-react";
+import {
+  CustomFieldsBuilder,
+  type CustomFieldDef,
+} from "@/components/custom-fields-builder";
 
 const EVENT_STATUSES = [
   "draft",
@@ -88,6 +92,7 @@ interface EventItem {
   registrationStart?: string;
   registrationEnd?: string;
   availabilitySlots?: string[];
+  customFields?: CustomFieldDef[];
   status: string;
   coordinatorId?: Coordinator | null;
 }
@@ -103,6 +108,7 @@ const emptyForm = {
   eventEnd: "",
   coordinatorId: "",
   availabilitySlots: [] as string[],
+  customFields: [] as CustomFieldDef[],
 };
 
 function toLocalInput(value?: string) {
@@ -183,6 +189,14 @@ export default function EventsPage() {
     try {
       const url = editing ? `/api/events/${editing._id}` : "/api/events";
       const method = editing ? "PUT" : "POST";
+      const cleanedFields = form.customFields
+        .filter((f) => f.label.trim())
+        .map((f) => ({
+          ...f,
+          label: f.label.trim(),
+          options: f.options?.map((o) => o.trim()).filter(Boolean),
+        }));
+
       const body = {
         name: form.name,
         description: form.description || undefined,
@@ -193,6 +207,7 @@ export default function EventsPage() {
         eventStart: form.eventStart,
         eventEnd: form.eventEnd,
         availabilitySlots: form.availabilitySlots.filter((s) => s.trim()),
+        customFields: cleanedFields,
         coordinatorId: form.coordinatorId || undefined,
       };
       const res = await authFetch(url, {
@@ -267,6 +282,7 @@ export default function EventsPage() {
       eventEnd: toLocalInput(event.eventEnd),
       coordinatorId: event.coordinatorId?._id || "",
       availabilitySlots: event.availabilitySlots || [],
+      customFields: event.customFields || [],
     });
     setDialogOpen(true);
     fetchCoordinators();
@@ -469,6 +485,15 @@ export default function EventsPage() {
                   </Button>
                 </div>
               </div>
+              <div className="border-t pt-4">
+                <CustomFieldsBuilder
+                  value={form.customFields}
+                  onChange={(customFields) =>
+                    setForm({ ...form, customFields })
+                  }
+                />
+              </div>
+
               <Button
                 className="w-full"
                 onClick={handleSubmit}

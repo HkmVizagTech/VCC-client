@@ -3,12 +3,26 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
 import { generateVolunteerNumber } from "@/lib/utils/volunteer-number";
+import { validateAndNormalizeAnswers } from "@/lib/utils/custom-fields";
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
-    const { eventId, name, phone, whatsappNumber, age, gender, locality, occupation, skills, serviceAvailability, notes } = body;
+    const {
+      eventId,
+      name,
+      phone,
+      whatsappNumber,
+      age,
+      gender,
+      locality,
+      occupation,
+      skills,
+      serviceAvailability,
+      customAnswers,
+      notes,
+    } = body;
 
     if (!eventId || !name || !phone) {
       return NextResponse.json(
@@ -35,6 +49,17 @@ export async function POST(req: NextRequest) {
     if (event.registrationEnd && new Date() > new Date(event.registrationEnd)) {
       return NextResponse.json(
         { message: "Registration deadline has passed" },
+        { status: 400 }
+      );
+    }
+
+    const answerResult = validateAndNormalizeAnswers(
+      event.customFields,
+      customAnswers
+    );
+    if (!answerResult.ok) {
+      return NextResponse.json(
+        { message: answerResult.message },
         { status: 400 }
       );
     }
@@ -77,6 +102,7 @@ export async function POST(req: NextRequest) {
       eventId,
       volunteerId: volunteer._id,
       serviceAvailability: serviceAvailability || [],
+      customAnswers: answerResult.answers,
       notes,
     });
 
@@ -93,15 +119,16 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
-    if (error.code === 11000) {
+  } catch (error: unknown) {
+    const err = error as { code?: number; message?: string };
+    if (err.code === 11000) {
       return NextResponse.json(
         { message: "Already registered for this event" },
         { status: 409 }
       );
     }
     return NextResponse.json(
-      { message: error.message || "Server error" },
+      { message: err.message || "Server error" },
       { status: 500 }
     );
   }

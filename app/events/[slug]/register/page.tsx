@@ -14,6 +14,11 @@ import {
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
 import {
+  CustomFieldsRenderer,
+  type CustomFieldAnswers,
+} from "@/components/custom-fields-renderer";
+import type { CustomFieldDef } from "@/components/custom-fields-builder";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -68,6 +73,7 @@ const emptyForm = {
   occupation: "",
   skills: [] as string[],
   serviceAvailability: [] as ServiceAvailabilityEntry[],
+  customAnswers: {} as CustomFieldAnswers,
   notes: "",
 };
 
@@ -79,6 +85,7 @@ interface RegisterEvent {
   eventEnd: string;
   venue?: string;
   availabilitySlots?: string[];
+  customFields?: CustomFieldDef[];
 }
 
 interface SuccessData {
@@ -155,6 +162,7 @@ export default function RegisterPage() {
           occupation: form.occupation || undefined,
           skills: form.skills,
           serviceAvailability: form.serviceAvailability,
+          customAnswers: form.customAnswers,
           notes: form.notes || undefined,
         }),
       });
@@ -472,6 +480,18 @@ export default function RegisterPage() {
                     }
                   />
                 )}
+
+              {event?.customFields && event.customFields.length > 0 && (
+                <div className="border-t pt-4">
+                  <CustomFieldsRenderer
+                    fields={event.customFields}
+                    values={form.customAnswers}
+                    onChange={(customAnswers) =>
+                      setForm({ ...form, customAnswers })
+                    }
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Anything else?</Label>

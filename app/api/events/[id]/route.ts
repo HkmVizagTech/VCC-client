@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
+import { sanitizeCustomFields } from "@/lib/utils/custom-fields";
 
 const VALID_TRANSITIONS: Record<string, string> = {
   draft: "registration_open",
@@ -68,6 +69,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
           { status: 400 }
         );
       }
+    }
+
+    if (body.customFields !== undefined) {
+      body.customFields = sanitizeCustomFields(body.customFields);
     }
 
     Object.assign(event, body);
