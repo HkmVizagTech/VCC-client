@@ -22,6 +22,15 @@ export function serviceAvailabilitySummary(
     .join(" · ");
 }
 
+export function availableOn(
+  entries: ServiceAvailabilityEntry[] | undefined,
+  date: string,
+  timeSlot: string
+): boolean {
+  if (!entries || entries.length === 0) return false;
+  return entries.some((e) => e.date === date && e.timeSlot === timeSlot);
+}
+
 export function ServiceAvailabilityPicker({
   start,
   end,

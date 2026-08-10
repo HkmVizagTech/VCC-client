@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { format, eachDayOfInterval } from "date-fns";
 import { authFetch } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ServiceAvailabilityPicker,
   serviceAvailabilitySummary,
+  availableOn,
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
 import { toast } from "sonner";
@@ -150,6 +152,8 @@ export function RegistrationsSection({
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [availDate, setAvailDate] = useState("");
+  const [availSlot, setAvailSlot] = useState("");
   const [changingId, setChangingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -179,6 +183,21 @@ export function RegistrationsSection({
   useEffect(() => {
     fetchRegistrations();
   }, [fetchRegistrations]);
+
+  const eventDays = useMemo(() => {
+    if (!eventStart || !eventEnd) return [];
+    return eachDayOfInterval({
+      start: new Date(eventStart),
+      end: new Date(eventEnd),
+    });
+  }, [eventStart, eventEnd]);
+
+  const filteredRegistrations = useMemo(() => {
+    if (!availDate || !availSlot) return registrations;
+    return registrations.filter((r) =>
+      availableOn(r.serviceAvailability, availDate, availSlot)
+    );
+  }, [registrations, availDate, availSlot]);
 
   const changeStatus = async (id: string, status: string) => {
     setChangingId(id);
@@ -277,7 +296,11 @@ export function RegistrationsSection({
         <div className="flex items-center gap-2">
           <ClipboardList className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-bold">Registrations</h2>
-          <Badge variant="secondary">{registrations.length}</Badge>
+          <Badge variant="secondary">
+            {availDate && availSlot
+              ? filteredRegistrations.length
+              : registrations.length}
+          </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canManage && (
@@ -450,6 +473,74 @@ export function RegistrationsSection({
         </div>
       </div>
 
+      {eventDays.length > 0 && availabilitySlots.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">
+            Available:
+          </span>
+          <Select
+            value={availDate || null}
+            onValueChange={(v) => {
+              if (v && v !== "__all") setAvailDate(v);
+              else setAvailDate("");
+            }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Any day" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Any day</SelectItem>
+              {eventDays.map((d) => (
+                <SelectItem
+                  key={format(d, "yyyy-MM-dd")}
+                  value={format(d, "yyyy-MM-dd")}
+                >
+                  {format(d, "EEE, MMM d")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={availSlot || null}
+            onValueChange={(v) => {
+              if (v && v !== "__all") setAvailSlot(v);
+              else setAvailSlot("");
+            }}
+          >
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Any time slot" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Any time slot</SelectItem>
+              {availabilitySlots.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(availDate || availSlot) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAvailDate("");
+                setAvailSlot("");
+              }}
+            >
+              Clear
+            </Button>
+          )}
+          {availDate && availSlot && (
+            <span className="text-sm text-muted-foreground">
+              {filteredRegistrations.length} available on{" "}
+              {format(new Date(`${availDate}T00:00:00`), "EEE, MMM d")} ·{" "}
+              {availSlot}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -464,6 +555,14 @@ export function RegistrationsSection({
             {statusFilter
               ? "No registrations with this status"
               : "Volunteer registrations will appear here"}
+          </p>
+        </div>
+      ) : filteredRegistrations.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
+          <UserCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
+          <p className="font-medium">No volunteers available</p>
+          <p className="text-sm text-muted-foreground">
+            No registrations for the selected day and time slot
           </p>
         </div>
       ) : (
@@ -481,7 +580,7 @@ export function RegistrationsSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {registrations.map((reg) => {
+              {filteredRegistrations.map((reg) => {
                 const vol = reg.volunteerId;
                 const next = NEXT_STATUSES[reg.status] || [];
                 const availability = serviceAvailabilitySummary(

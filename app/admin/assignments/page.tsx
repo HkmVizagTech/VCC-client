@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { format, eachDayOfInterval } from "date-fns";
 import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  availableOn,
+  serviceAvailabilitySummary,
+  type ServiceAvailabilityEntry,
+} from "@/components/service-availability-picker";
 import { toast } from "sonner";
 import {
   ClipboardList,
@@ -68,6 +74,7 @@ interface Registration {
   status: string;
   volunteerId?: RegisteredVolunteer;
   serviceId?: { _id: string; name: string } | null;
+  serviceAvailability?: ServiceAvailabilityEntry[];
   createdAt: string;
 }
 
@@ -82,6 +89,9 @@ interface EventOption {
   _id: string;
   name: string;
   date?: string;
+  eventStart?: string;
+  eventEnd?: string;
+  availabilitySlots?: string[];
 }
 
 export default function AssignmentsPage() {
@@ -103,6 +113,10 @@ export default function AssignmentsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkServiceId, setBulkServiceId] = useState("");
   const [bulkAssigning, setBulkAssigning] = useState(false);
+
+  // Availability filter
+  const [availDate, setAvailDate] = useState("");
+  const [availSlot, setAvailSlot] = useState("");
 
   // Fetch events on mount
   useEffect(() => {
@@ -135,6 +149,8 @@ export default function AssignmentsPage() {
     setLoading(true);
     setSelectedIds(new Set());
     setBulkServiceId("");
+    setAvailDate("");
+    setAvailSlot("");
     try {
       const [regRes, svcRes] = await Promise.all([
         authFetch(
@@ -168,6 +184,19 @@ export default function AssignmentsPage() {
   }, [fetchEventData]);
 
   // Derived data
+  const selectedEvent = useMemo(
+    () => events.find((e) => e._id === selectedEventId),
+    [events, selectedEventId]
+  );
+
+  const eventDays = useMemo(() => {
+    if (!selectedEvent?.eventStart || !selectedEvent?.eventEnd) return [];
+    return eachDayOfInterval({
+      start: new Date(selectedEvent.eventStart),
+      end: new Date(selectedEvent.eventEnd),
+    });
+  }, [selectedEvent]);
+
   const unassigned = useMemo(() => {
     return registrations.filter(
       (r) =>
@@ -177,9 +206,14 @@ export default function AssignmentsPage() {
   }, [registrations]);
 
   const filteredUnassigned = useMemo(() => {
-    if (!search) return unassigned;
     const q = search.toLowerCase();
     return unassigned.filter((r) => {
+      if (availDate && availSlot) {
+        if (!availableOn(r.serviceAvailability, availDate, availSlot)) {
+          return false;
+        }
+      }
+      if (!q) return true;
       const vol = r.volunteerId;
       if (!vol) return false;
       return (
@@ -190,7 +224,7 @@ export default function AssignmentsPage() {
         (vol.skills || []).some((s) => s.toLowerCase().includes(q))
       );
     });
-  }, [unassigned, search]);
+  }, [unassigned, search, availDate, availSlot]);
 
   const assignedByService = useMemo(() => {
     const map = new Map<string, Registration[]>();
@@ -386,6 +420,74 @@ export default function AssignmentsPage() {
               </div>
             </div>
 
+            {/* Availability filter */}
+            {eventDays.length > 0 &&
+              (selectedEvent?.availabilitySlots || []).length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Available:
+                  </span>
+                  <Select
+                    value={availDate || null}
+                    onValueChange={(v) => {
+                      if (v && v !== "__all") setAvailDate(v);
+                      else setAvailDate("");
+                    }}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Any day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">Any day</SelectItem>
+                      {eventDays.map((d) => (
+                        <SelectItem
+                          key={format(d, "yyyy-MM-dd")}
+                          value={format(d, "yyyy-MM-dd")}
+                        >
+                          {format(d, "EEE, MMM d")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={availSlot || null}
+                    onValueChange={(v) => {
+                      if (v && v !== "__all") setAvailSlot(v);
+                      else setAvailSlot("");
+                    }}
+                  >
+                    <SelectTrigger className="w-52">
+                      <SelectValue placeholder="Any time slot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">Any time slot</SelectItem>
+                      {(selectedEvent?.availabilitySlots || []).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(availDate || availSlot) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setAvailDate("");
+                        setAvailSlot("");
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                  {availDate && availSlot && (
+                    <Badge variant="secondary">
+                      {filteredUnassigned.length} available
+                    </Badge>
+                  )}
+                </div>
+              )}
+
             {/* Bulk assign bar */}
             {filteredUnassigned.length > 0 && (
               <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/50 px-4 py-3">
@@ -455,6 +557,7 @@ export default function AssignmentsPage() {
                       </TableHead>
                       <TableHead>Volunteer</TableHead>
                       <TableHead>Phone</TableHead>
+                      <TableHead>Availability</TableHead>
                       <TableHead>Skills</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Assign Service</TableHead>
@@ -487,6 +590,17 @@ export default function AssignmentsPage() {
                                   WA: {vol.whatsappNumber}
                                 </div>
                               )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs">
+                              {serviceAvailabilitySummary(
+                                reg.serviceAvailability
+                              ) || (
+                                <span className="text-muted-foreground">
+                                  —
+                                </span>
+                              )}
+                            </span>
                           </TableCell>
                           <TableCell>
                             {(vol?.skills || []).length === 0 ? (
