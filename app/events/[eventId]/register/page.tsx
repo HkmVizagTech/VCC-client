@@ -33,44 +33,16 @@ import {
 } from "lucide-react";
 import { PhotoCapture } from "@/components/photo-capture";
 
-const SKILLS = [
-  "medical",
-  "photography",
-  "videography",
-  "driving",
-  "electrical",
-  "sound",
-  "it",
-  "graphic_design",
-  "cooking",
-  "crowd_management",
-  "other",
-] as const;
-
 const GENDERS = ["male", "female", "other"] as const;
-
-const skillLabels: Record<string, string> = {
-  medical: "Medical",
-  photography: "Photography",
-  videography: "Videography",
-  driving: "Driving",
-  electrical: "Electrical",
-  sound: "Sound",
-  it: "IT / Tech",
-  graphic_design: "Graphic Design",
-  cooking: "Cooking",
-  crowd_management: "Crowd Management",
-  other: "Other",
-};
 
 const emptyForm = {
   name: "",
   phone: "",
   age: "",
   gender: "",
-  locality: "",
-  occupation: "",
-  skills: [] as string[],
+  occupationType: "",
+  institution: "",
+  company: "",
   photoKey: null as string | null,
   serviceAvailability: [] as ServiceAvailabilityEntry[],
   customAnswers: {} as CustomFieldAnswers,
@@ -129,15 +101,6 @@ export default function RegisterPage() {
     fetchEvent();
   }, [fetchEvent]);
 
-  const toggleSkill = (skill: string) => {
-    setForm((prev) => ({
-      ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter((s) => s !== skill)
-        : [...prev.skills, skill],
-    }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
@@ -165,9 +128,15 @@ export default function RegisterPage() {
           phone: cleaned,
           age: form.age ? Number(form.age) : undefined,
           gender: form.gender || undefined,
-          locality: form.locality || undefined,
-          occupation: form.occupation || undefined,
-          skills: form.skills,
+          occupationType: form.occupationType || undefined,
+          institution: form.institution || undefined,
+          company: form.company || undefined,
+          occupation:
+            form.occupationType === "student"
+              ? "Student"
+              : form.occupationType === "working"
+                ? "Working"
+                : undefined,
           photoKey: form.photoKey || undefined,
           serviceAvailability: form.serviceAvailability,
           customAnswers: form.customAnswers,
@@ -419,52 +388,48 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="locality">Locality / Area</Label>
-                  <Input
-                    id="locality"
-                    value={form.locality}
-                    onChange={(e) =>
-                      setForm({ ...form, locality: e.target.value })
-                    }
-                    placeholder="e.g. MVP Colony"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="occupation">Occupation</Label>
-                  <Input
-                    id="occupation"
-                    value={form.occupation}
-                    onChange={(e) =>
-                      setForm({ ...form, occupation: e.target.value })
-                    }
-                    placeholder="e.g. Software Engineer"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label>Skills</Label>
-                <div className="flex flex-wrap gap-2">
-                  {SKILLS.map((skill) => {
-                    const active = form.skills.includes(skill);
-                    return (
-                      <button
-                        key={skill}
-                        type="button"
-                        onClick={() => toggleSkill(skill)}
-                        className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input bg-transparent text-muted-foreground hover:bg-accent"
-                        }`}
-                      >
-                        {skillLabels[skill]}
-                      </button>
-                    );
-                  })}
-                </div>
+                <Label htmlFor="occupationType">
+                  Are you a Student or Working?
+                </Label>
+                <select
+                  id="occupationType"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.occupationType}
+                  onChange={(e) =>
+                    setForm({ ...form, occupationType: e.target.value })
+                  }
+                >
+                  <option value="">Select</option>
+                  <option value="student">Student</option>
+                  <option value="working">Working Professional</option>
+                </select>
+                {form.occupationType === "student" && (
+                  <div className="space-y-2 pt-1">
+                    <Label htmlFor="institution">College / School Name</Label>
+                    <Input
+                      id="institution"
+                      value={form.institution}
+                      onChange={(e) =>
+                        setForm({ ...form, institution: e.target.value })
+                      }
+                      placeholder="e.g. GITAM University"
+                    />
+                  </div>
+                )}
+                {form.occupationType === "working" && (
+                  <div className="space-y-2 pt-1">
+                    <Label htmlFor="company">Company / Organisation Name</Label>
+                    <Input
+                      id="company"
+                      value={form.company}
+                      onChange={(e) =>
+                        setForm({ ...form, company: e.target.value })
+                      }
+                      placeholder="e.g. Infosys"
+                    />
+                  </div>
+                )}
               </div>
 
               {event?.availabilitySlots &&

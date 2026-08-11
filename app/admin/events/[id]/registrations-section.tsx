@@ -75,42 +75,14 @@ const NEXT_STATUSES: Record<string, string[]> = {
 
 const GENDERS = ["male", "female", "other"] as const;
 
-const SKILLS = [
-  "medical",
-  "photography",
-  "videography",
-  "driving",
-  "electrical",
-  "sound",
-  "it",
-  "graphic_design",
-  "cooking",
-  "crowd_management",
-  "other",
-] as const;
-
-const skillLabels: Record<string, string> = {
-  medical: "Medical",
-  photography: "Photography",
-  videography: "Videography",
-  driving: "Driving",
-  electrical: "Electrical",
-  sound: "Sound",
-  it: "IT / Tech",
-  graphic_design: "Graphic Design",
-  cooking: "Cooking",
-  crowd_management: "Crowd Management",
-  other: "Other",
-};
-
 const emptyForm = {
   name: "",
   phone: "",
   age: "",
   gender: "",
-  locality: "",
-  occupation: "",
-  skills: [] as string[],
+  occupationType: "",
+  institution: "",
+  company: "",
   photoKey: null as string | null,
   serviceAvailability: [] as ServiceAvailabilityEntry[],
   customAnswers: {} as CustomFieldAnswers,
@@ -133,6 +105,7 @@ interface RegisteredVolunteer {
   gender?: string;
   locality?: string;
   occupation?: string;
+  photoKey?: string;
   skills?: string[];
 }
 
@@ -258,15 +231,6 @@ export function RegistrationsSection({
     }
   };
 
-  const toggleSkill = (skill: string) => {
-    setForm((prev) => ({
-      ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter((s) => s !== skill)
-        : [...prev.skills, skill],
-    }));
-  };
-
   const resetForm = () => {
     setForm(emptyForm);
   };
@@ -287,9 +251,15 @@ export function RegistrationsSection({
           phone: cleaned,
           age: form.age ? Number(form.age) : undefined,
           gender: form.gender || undefined,
-          locality: form.locality || undefined,
-          occupation: form.occupation || undefined,
-          skills: form.skills,
+          occupationType: form.occupationType || undefined,
+          institution: form.institution || undefined,
+          company: form.company || undefined,
+          occupation:
+            form.occupationType === "student"
+              ? "Student"
+              : form.occupationType === "working"
+                ? "Working"
+                : undefined,
           photoKey: form.photoKey || undefined,
           serviceAvailability: form.serviceAvailability,
           customAnswers: form.customAnswers,
@@ -414,49 +384,43 @@ export function RegistrationsSection({
                       </Select>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Locality / Area</Label>
-                      <Input
-                        value={form.locality}
-                        onChange={(e) =>
-                          setForm({ ...form, locality: e.target.value })
-                        }
-                        placeholder="e.g. MVP Colony"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Occupation</Label>
-                      <Input
-                        value={form.occupation}
-                        onChange={(e) =>
-                          setForm({ ...form, occupation: e.target.value })
-                        }
-                        placeholder="e.g. Student"
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
-                    <Label>Skills</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {SKILLS.map((skill) => {
-                        const active = form.skills.includes(skill);
-                        return (
-                          <button
-                            key={skill}
-                            type="button"
-                            onClick={() => toggleSkill(skill)}
-                            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-input bg-transparent text-muted-foreground hover:bg-accent"
-                            }`}
-                          >
-                            {skillLabels[skill]}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <Label>Are you a Student or Working?</Label>
+                    <select
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={form.occupationType}
+                      onChange={(e) =>
+                        setForm({ ...form, occupationType: e.target.value })
+                      }
+                    >
+                      <option value="">Select</option>
+                      <option value="student">Student</option>
+                      <option value="working">Working Professional</option>
+                    </select>
+                    {form.occupationType === "student" && (
+                      <div className="space-y-2 pt-1">
+                        <Label>College / School Name</Label>
+                        <Input
+                          value={form.institution}
+                          onChange={(e) =>
+                            setForm({ ...form, institution: e.target.value })
+                          }
+                          placeholder="e.g. GITAM University"
+                        />
+                      </div>
+                    )}
+                    {form.occupationType === "working" && (
+                      <div className="space-y-2 pt-1">
+                        <Label>Company / Organisation Name</Label>
+                        <Input
+                          value={form.company}
+                          onChange={(e) =>
+                            setForm({ ...form, company: e.target.value })
+                          }
+                          placeholder="e.g. Infosys"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Photo</Label>
@@ -628,7 +592,6 @@ export function RegistrationsSection({
                 <TableHead>Volunteer</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Availability</TableHead>
-                <TableHead>Skills</TableHead>
                 {canManage && <TableHead>Service</TableHead>}
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
@@ -644,7 +607,20 @@ export function RegistrationsSection({
                 return (
                   <TableRow key={reg._id}>
                     <TableCell>
-                      <div className="font-medium">{vol?.name || "—"}</div>
+                      <div className="flex items-center gap-2.5">
+                        {vol?.photoKey ? (
+                          <img
+                            src={`/api/upload/photo?key=${encodeURIComponent(vol.photoKey)}`}
+                            alt={vol.name}
+                            className="h-8 w-8 shrink-0 rounded-full border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                            {vol?.name?.charAt(0).toUpperCase() || "?"}
+                          </div>
+                        )}
+                        <div className="font-medium">{vol?.name || "—"}</div>
+                      </div>
                     </TableCell>
                     <TableCell>{vol?.phone || "—"}</TableCell>
                     <TableCell>
@@ -652,24 +628,6 @@ export function RegistrationsSection({
                         <span className="text-xs">{availability}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {(vol?.skills || []).length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {(vol?.skills || []).slice(0, 3).map((s) => (
-                            <Badge key={s} variant="outline">
-                              {s.replace(/_/g, " ")}
-                            </Badge>
-                          ))}
-                          {(vol?.skills || []).length > 3 && (
-                            <span className="text-xs text-muted-foreground">
-                              +{(vol?.skills || []).length - 3}
-                            </span>
-                          )}
-                        </div>
                       )}
                     </TableCell>
                     {canManage && (

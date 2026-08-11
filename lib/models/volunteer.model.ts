@@ -23,6 +23,9 @@ export interface IVolunteer extends Document {
   gender?: "male" | "female" | "other";
   locality?: string;
   occupation?: string;
+  occupationType?: "student" | "working";
+  institution?: string;
+  company?: string;
   skills: VolunteerSkill[];
   photoKey?: string;
   notes?: string;
@@ -38,6 +41,9 @@ const volunteerSchema = new Schema<IVolunteer>(
     gender: { type: String, enum: ["male", "female", "other"] },
     locality: { type: String, trim: true },
     occupation: { type: String, trim: true },
+    occupationType: { type: String, enum: ["student", "working"] },
+    institution: { type: String, trim: true },
+    company: { type: String, trim: true },
     skills: [{ type: String, enum: VOLUNTEER_SKILLS }],
     photoKey: { type: String, trim: true },
     notes: String,
