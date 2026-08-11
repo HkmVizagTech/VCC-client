@@ -1,23 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { Volunteer } from "@/lib/models";
+import { Event } from "@/lib/models";
 
-type Params = { params: Promise<{ token: string }> };
+type Params = { params: Promise<{ eventId: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const { token } = await params;
+    const { eventId } = await params;
     await connectDB();
 
-    const volunteer = await Volunteer.findOne({ sevaToken: token });
-    if (!volunteer) {
+    const event = await Event.findOne({ eventId: eventId.toUpperCase() }).populate(
+      "coordinatorId",
+      "name email"
+    );
+    if (!event) {
       return NextResponse.json(
-        { message: "Volunteer not found" },
+        { message: "Event not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ volunteer });
+    return NextResponse.json({ event });
   } catch (error: any) {
     return NextResponse.json(
       { message: error.message || "Server error" },

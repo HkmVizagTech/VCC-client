@@ -54,6 +54,7 @@ import {
   CustomFieldsBuilder,
   type CustomFieldDef,
 } from "@/components/custom-fields-builder";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshButton } from "@/components/refresh-button";
 
 const EVENT_STATUSES = [
@@ -83,8 +84,8 @@ interface Coordinator {
 
 interface EventItem {
   _id: string;
+  eventId: string;
   name: string;
-  slug: string;
   description?: string;
   venue?: string;
   bannerImage?: string;
@@ -96,9 +97,27 @@ interface EventItem {
   customFields?: CustomFieldDef[];
   status: string;
   coordinatorId?: Coordinator | null;
+  photoRequired?: boolean;
+}
+
+interface EventFormPayload {
+  name: string;
+  description?: string;
+  venue?: string;
+  bannerImage?: string;
+  registrationStart?: string;
+  registrationEnd?: string;
+  eventStart: string;
+  eventEnd: string;
+  availabilitySlots: string[];
+  customFields: CustomFieldDef[];
+  coordinatorId: string;
+  photoRequired: boolean;
+  eventId?: string;
 }
 
 const emptyForm = {
+  eventId: "",
   name: "",
   description: "",
   venue: "",
@@ -110,6 +129,7 @@ const emptyForm = {
   coordinatorId: "",
   availabilitySlots: [] as string[],
   customFields: [] as CustomFieldDef[],
+  photoRequired: false,
 };
 
 function toLocalInput(value?: string) {
@@ -186,6 +206,14 @@ export default function EventsPage() {
       toast.error("Name, event start and event end are required");
       return;
     }
+    if (!editing && !form.eventId.trim()) {
+      toast.error("Event ID is required (e.g. SKJ26)");
+      return;
+    }
+    if (!form.coordinatorId) {
+      toast.error("Coordinator is required");
+      return;
+    }
     setSubmitting(true);
     try {
       const url = editing ? `/api/events/${editing._id}` : "/api/events";
@@ -198,7 +226,7 @@ export default function EventsPage() {
           options: f.options?.map((o) => o.trim()).filter(Boolean),
         }));
 
-      const body = {
+      const body: EventFormPayload = {
         name: form.name,
         description: form.description || undefined,
         venue: form.venue || undefined,
@@ -209,8 +237,12 @@ export default function EventsPage() {
         eventEnd: form.eventEnd,
         availabilitySlots: form.availabilitySlots.filter((s) => s.trim()),
         customFields: cleanedFields,
-        coordinatorId: form.coordinatorId || undefined,
+        coordinatorId: form.coordinatorId,
+        photoRequired: form.photoRequired,
       };
+      if (!editing) {
+        body.eventId = form.eventId.trim().toUpperCase();
+      }
       const res = await authFetch(url, {
         method,
         body: JSON.stringify(body),
@@ -273,6 +305,7 @@ export default function EventsPage() {
   const openEdit = (event: EventItem) => {
     setEditing(event);
     setForm({
+      eventId: event.eventId,
       name: event.name,
       description: event.description || "",
       venue: event.venue || "",
@@ -284,6 +317,7 @@ export default function EventsPage() {
       coordinatorId: event.coordinatorId?._id || "",
       availabilitySlots: event.availabilitySlots || [],
       customFields: event.customFields || [],
+      photoRequired: event.photoRequired || false,
     });
     setDialogOpen(true);
     fetchCoordinators();
@@ -297,7 +331,7 @@ export default function EventsPage() {
   const copyRegistrationLink = async (event: EventItem) => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/events/${event.slug}/register`
+        `${window.location.origin}/events/${event.eventId}/register`
       );
       toast.success("Registration link copied");
     } catch {
@@ -338,13 +372,37 @@ export default function EventsPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="max-h-[70vh] space-y-4 overflow-y-auto py-2 pr-1">
-              <div className="space-y-2">
-                <Label>Event Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Sri Krishna Janmashtami 2026"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Event ID *</Label>
+                  <Input
+                    value={form.eventId}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        eventId: e.target.value.toUpperCase().replace(/\s/g, ""),
+                      })
+                    }
+                    placeholder="e.g. SKJ26"
+                    disabled={!!editing}
+                  />
+                  {!editing && (
+                    <p className="text-xs text-muted-foreground">
+                      Unique ID shared with the mobile app. Cannot be changed
+                      later.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Event Name *</Label>
+                  <Input
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm({ ...form, name: e.target.value })
+                    }
+                    placeholder="e.g. Sri Krishna Janmashtami 2026"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
@@ -423,7 +481,7 @@ export default function EventsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Coordinator</Label>
+                <Label>Coordinator *</Label>
                 <Select
                   value={form.coordinatorId || null}
                   onValueChange={(v) => {
@@ -492,7 +550,21 @@ export default function EventsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="border-t pt-4">
+              <div className="border-t pt-4 space-y-4">
+                <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+                  <Checkbox
+                    checked={form.photoRequired}
+                    onCheckedChange={(v) =>
+                      setForm({ ...form, photoRequired: Boolean(v) })
+                    }
+                  />
+                  <span>
+                    <span className="font-medium">Photo required</span>
+                    <span className="ml-1 text-muted-foreground text-xs">
+                      — volunteers must upload a photo to register
+                    </span>
+                  </span>
+                </label>
                 <CustomFieldsBuilder
                   value={form.customFields}
                   onChange={(customFields) =>
@@ -573,8 +645,8 @@ export default function EventsPage() {
                   <TableRow key={event._id}>
                     <TableCell className="max-w-64">
                       <div className="font-medium">{event.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {event.slug}
+                      <div className="text-xs font-mono text-muted-foreground">
+                        {event.eventId}
                       </div>
                     </TableCell>
                     <TableCell>

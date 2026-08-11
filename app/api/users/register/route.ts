@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 import { hashPassword } from "@/lib/utils/password";
+import { validatePhone } from "@/lib/utils/phone";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,15 @@ export async function POST(req: NextRequest) {
 
     if (!name || !email || !password || !role) {
       return NextResponse.json(
-        { message: "Name, email, password, and role are required" },
+        { message: "Name, email, phone, password, and role are required" },
+        { status: 400 }
+      );
+    }
+
+    const phoneResult = validatePhone(phone);
+    if (!phoneResult.ok) {
+      return NextResponse.json(
+        { message: phoneResult.message },
         { status: 400 }
       );
     }
@@ -38,7 +47,7 @@ export async function POST(req: NextRequest) {
     const user = await User.create({
       name,
       email: email.toLowerCase(),
-      phone,
+      phone: phoneResult.phone,
       password: hashedPassword,
       role,
     });

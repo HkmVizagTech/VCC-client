@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
-import { validateAndNormalizeAnswers } from "@/lib/utils/custom-fields";
 import { validatePhone } from "@/lib/utils/phone";
+import { validateAndNormalizeAnswers } from "@/lib/utils/custom-fields";
 
-export async function POST(req: NextRequest) {
+type Params = { params: Promise<{ eventId: string }> };
+
+export async function POST(req: NextRequest, { params }: Params) {
   try {
+    const { eventId } = await params;
     await connectDB();
+
     const body = await req.json();
     const {
-      eventId,
       name,
       age,
       gender,
@@ -22,9 +25,9 @@ export async function POST(req: NextRequest) {
       notes,
     } = body;
 
-    if (!eventId || !name) {
+    if (!name) {
       return NextResponse.json(
-        { message: "eventId and name are required" },
+        { message: "Name is required" },
         { status: 400 }
       );
     }
@@ -36,9 +39,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const phone = phoneResult.phone;
 
-    const event = await Event.findById(eventId);
+    const event = await Event.findOne({ eventId: eventId.toUpperCase() });
     if (!event) {
       return NextResponse.json(
         { message: "Event not found" },
@@ -71,11 +73,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let volunteer = await Volunteer.findOne({ phone });
+    let volunteer = await Volunteer.findOne({ phone: phoneResult.phone });
     if (!volunteer) {
       volunteer = await Volunteer.create({
         name,
-        phone,
+        phone: phoneResult.phone,
         age,
         gender,
         locality,
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     const existingReg = await Registration.findOne({
-      eventId,
+      eventId: event._id,
       volunteerId: volunteer._id,
     });
     if (existingReg) {
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     const registration = await Registration.create({
-      eventId,
+      eventId: event._id,
       volunteerId: volunteer._id,
       serviceAvailability: serviceAvailability || [],
       customAnswers: answerResult.answers,

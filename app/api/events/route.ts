@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
-import { generateSlug } from "@/lib/utils/slugify";
 import { sanitizeCustomFields } from "@/lib/utils/custom-fields";
 
 export async function GET(req: NextRequest) {
@@ -51,18 +50,31 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const body = await req.json();
 
-    if (!body.name || !body.eventStart || !body.eventEnd) {
+    if (!body.eventId || !body.name || !body.eventStart || !body.eventEnd) {
       return NextResponse.json(
-        { message: "Name, eventStart, and eventEnd are required" },
+        { message: "Event ID, name, eventStart, and eventEnd are required" },
         { status: 400 }
       );
     }
 
-    const slug = await generateSlug(body.name);
+    if (!body.coordinatorId) {
+      return NextResponse.json(
+        { message: "Coordinator is required" },
+        { status: 400 }
+      );
+    }
+
+    const existingEvent = await Event.findOne({ eventId: body.eventId.toUpperCase() });
+    if (existingEvent) {
+      return NextResponse.json(
+        { message: "An event with this Event ID already exists" },
+        { status: 409 }
+      );
+    }
 
     const event = await Event.create({
       ...body,
-      slug,
+      eventId: body.eventId.toUpperCase(),
       customFields: sanitizeCustomFields(body.customFields),
       createdBy: auth.userId,
     });
@@ -72,6 +84,12 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
+    if (error.code === 11000) {
+      return NextResponse.json(
+        { message: "An event with this Event ID already exists" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { message: error.message || "Server error" },
       { status: 500 }

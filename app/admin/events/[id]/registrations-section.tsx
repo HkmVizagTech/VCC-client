@@ -42,6 +42,7 @@ import {
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
 import { RefreshButton } from "@/components/refresh-button";
 import { VolunteerDetailsDialog } from "@/components/volunteer-details-dialog";
+import { PhotoCapture } from "@/components/photo-capture";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
 
@@ -104,12 +105,13 @@ const skillLabels: Record<string, string> = {
 
 const emptyForm = {
   name: "",
-  whatsapp: "",
+  phone: "",
   age: "",
   gender: "",
   locality: "",
   occupation: "",
   skills: [] as string[],
+  photoKey: null as string | null,
   serviceAvailability: [] as ServiceAvailabilityEntry[],
   customAnswers: {} as CustomFieldAnswers,
   notes: "",
@@ -127,8 +129,6 @@ interface RegisteredVolunteer {
   _id: string;
   name: string;
   phone: string;
-  whatsappNumber?: string;
-  volunteerNumber: string;
   age?: number;
   gender?: string;
   locality?: string;
@@ -272,8 +272,9 @@ export function RegistrationsSection({
   };
 
   const handleAddRegistration = async () => {
-    if (!form.name || !form.whatsapp) {
-      toast.error("Name and WhatsApp number are required");
+    const cleaned = form.phone.replace(/\D/g, "");
+    if (!form.name || cleaned.length !== 10) {
+      toast.error("Name and a valid 10-digit phone number are required");
       return;
     }
     setSubmitting(true);
@@ -283,13 +284,13 @@ export function RegistrationsSection({
         body: JSON.stringify({
           eventId,
           name: form.name,
-          phone: form.whatsapp,
-          whatsappNumber: form.whatsapp,
+          phone: cleaned,
           age: form.age ? Number(form.age) : undefined,
           gender: form.gender || undefined,
           locality: form.locality || undefined,
           occupation: form.occupation || undefined,
           skills: form.skills,
+          photoKey: form.photoKey || undefined,
           serviceAvailability: form.serviceAvailability,
           customAnswers: form.customAnswers,
           notes: form.notes || undefined,
@@ -360,15 +361,22 @@ export function RegistrationsSection({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>WhatsApp Number *</Label>
-                      <Input
-                        type="tel"
-                        value={form.whatsapp}
-                        onChange={(e) =>
-                          setForm({ ...form, whatsapp: e.target.value })
-                        }
-                        placeholder="+91 9876543210"
-                      />
+                      <Label>Phone Number *</Label>
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-9 items-center rounded-md border bg-muted px-2.5 text-sm text-muted-foreground">
+                          +91
+                        </span>
+                        <Input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          value={form.phone}
+                          onChange={(e) =>
+                            setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })
+                          }
+                          placeholder="10-digit number"
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -449,6 +457,14 @@ export function RegistrationsSection({
                         );
                       })}
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Photo</Label>
+                    <PhotoCapture
+                      value={form.photoKey}
+                      onChange={(key) => setForm({ ...form, photoKey: key })}
+                      disabled={submitting}
+                    />
                   </div>
                   {availabilitySlots.length > 0 && eventStart && eventEnd && (
                     <ServiceAvailabilityPicker
@@ -610,7 +626,7 @@ export function RegistrationsSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Volunteer</TableHead>
-                <TableHead>WhatsApp</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead>Skills</TableHead>
                 {canManage && <TableHead>Service</TableHead>}
@@ -629,9 +645,6 @@ export function RegistrationsSection({
                   <TableRow key={reg._id}>
                     <TableCell>
                       <div className="font-medium">{vol?.name || "—"}</div>
-                      <div className="font-mono text-xs text-muted-foreground">
-                        {vol?.volunteerNumber || "—"}
-                      </div>
                     </TableCell>
                     <TableCell>{vol?.phone || "—"}</TableCell>
                     <TableCell>

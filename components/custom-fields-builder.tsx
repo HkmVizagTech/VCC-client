@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown, Star } from "lucide-react";
 
 export type CustomFieldType =
   | "short_text"
@@ -23,13 +23,15 @@ export type CustomFieldType =
   | "select"
   | "radio"
   | "checkbox"
-  | "date";
+  | "date"
+  | "devotee_select";
 
 export interface CustomFieldDef {
   id: string;
   label: string;
   type: CustomFieldType;
   required: boolean;
+  important?: boolean;
   options?: string[];
   placeholder?: string;
   helpText?: string;
@@ -45,6 +47,7 @@ const TYPE_LABELS: Record<CustomFieldType, string> = {
   radio: "Single Choice (radio)",
   checkbox: "Multiple Choice (checkboxes)",
   date: "Date",
+  devotee_select: "Devotee Selector",
 };
 
 const TYPES_WITH_OPTIONS: CustomFieldType[] = ["select", "radio", "checkbox"];
@@ -97,6 +100,7 @@ export function CustomFieldsBuilder({ value, onChange }: Props) {
         label: "",
         type: "short_text",
         required: false,
+        important: false,
       },
     ]);
   };
@@ -134,10 +138,11 @@ export function CustomFieldsBuilder({ value, onChange }: Props) {
         <div className="space-y-3">
           {value.map((field, idx) => {
             const needsOptions = TYPES_WITH_OPTIONS.includes(field.type);
+            const isDevoteeSelect = field.type === "devotee_select";
             return (
               <div
                 key={field.id}
-                className="rounded-md border bg-muted/20 p-3 space-y-3"
+                className={`rounded-md border bg-muted/20 p-3 space-y-3 ${field.important ? "border-amber-400/60" : ""}`}
               >
                 <div className="flex items-start gap-2">
                   <div className="mt-2 flex flex-col text-muted-foreground">
@@ -179,7 +184,13 @@ export function CustomFieldsBuilder({ value, onChange }: Props) {
                       </div>
                     </div>
 
-                    {!needsOptions && (
+                    {isDevoteeSelect && (
+                      <p className="text-xs text-muted-foreground">
+                        Volunteers will be able to select one or more devotees from the admin-managed devotee list.
+                      </p>
+                    )}
+
+                    {!needsOptions && !isDevoteeSelect && (
                       <div className="space-y-1">
                         <Label className="text-xs">
                           Placeholder{" "}
@@ -245,15 +256,27 @@ export function CustomFieldsBuilder({ value, onChange }: Props) {
                     </div>
 
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Checkbox
-                          checked={field.required}
-                          onCheckedChange={(v) =>
-                            updateField(idx, { required: Boolean(v) })
-                          }
-                        />
-                        Required
-                      </label>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={field.required}
+                            onCheckedChange={(v) =>
+                              updateField(idx, { required: Boolean(v) })
+                            }
+                          />
+                          Required
+                        </label>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={!!field.important}
+                            onCheckedChange={(v) =>
+                              updateField(idx, { important: Boolean(v) })
+                            }
+                          />
+                          <Star className="h-3.5 w-3.5 text-amber-500" />
+                          Important
+                        </label>
+                      </div>
                       <div className="flex items-center gap-1">
                         <Button
                           type="button"

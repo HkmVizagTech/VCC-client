@@ -6,13 +6,13 @@ type Params = { params: Promise<{ param: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const { param: token } = await params;
+    const { param: phone } = await params;
     await connectDB();
 
-    const volunteer = await Volunteer.findOne({ sevaToken: token });
+    const volunteer = await Volunteer.findOne({ phone });
     if (!volunteer) {
       return NextResponse.json(
-        { message: "Invalid seva token" },
+        { message: "Volunteer not found" },
         { status: 404 }
       );
     }
@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       volunteerId: volunteer._id,
       status: { $ne: "cancelled" },
     })
-      .populate("eventId", "name slug status venue eventStart eventEnd")
+      .populate("eventId", "name eventId status venue eventStart eventEnd")
       .populate({
         path: "serviceId",
         select: "name description coordinatorId",
@@ -32,7 +32,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({
       volunteer: {
         name: volunteer.name,
-        volunteerNumber: volunteer.volunteerNumber,
         phone: volunteer.phone,
       },
       registrations,

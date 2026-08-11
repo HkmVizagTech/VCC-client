@@ -22,10 +22,10 @@ const statusLabels: Record<string, string> = {
   archived: "Archived",
 };
 
-async function getEvent(slug: string) {
+async function getEvent(eventId: string) {
   try {
     await connectDB();
-    const event = await Event.findOne({ slug })
+    const event = await Event.findOne({ eventId: eventId.toUpperCase() })
       .populate("coordinatorId", "name email")
       .lean();
     return event ? JSON.parse(JSON.stringify(event)) : null;
@@ -37,10 +37,10 @@ async function getEvent(slug: string) {
 export default async function PublicEventDetailPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ eventId: string }>;
 }) {
-  const { slug } = await params;
-  const event = await getEvent(slug);
+  const { eventId } = await params;
+  const event = await getEvent(eventId);
 
   if (!event) notFound();
 
@@ -166,7 +166,7 @@ export default async function PublicEventDetailPage({
                   </p>
                   <div className="mt-3">
                     <Link
-                      href={`/events/${event.slug}/register`}
+                      href={`/events/${event.eventId}/register`}
                       className="inline-flex h-11 items-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
                     >
                       Register as a Volunteer

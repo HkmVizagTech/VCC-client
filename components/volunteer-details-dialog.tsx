@@ -15,16 +15,14 @@ import { Loader2, User, Phone, Calendar, MapPin, Briefcase, Award } from "lucide
 interface VolunteerSummary {
   _id: string;
   name: string;
-  volunteerNumber?: string;
   phone?: string;
-  whatsappNumber?: string;
   age?: number;
   gender?: string;
   locality?: string;
   occupation?: string;
   skills?: string[];
+  photoKey?: string;
   notes?: string;
-  sevaToken?: string;
   createdAt?: string;
 }
 
@@ -46,7 +44,7 @@ interface RegistrationRecord {
   eventId?: {
     _id: string;
     name: string;
-    slug?: string;
+    eventId?: string;
     status?: string;
     eventStart?: string;
     eventEnd?: string;
@@ -148,13 +146,17 @@ export function VolunteerDetailsDialog({
             {/* Profile card */}
             <div className="rounded-lg border bg-muted/20 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-lg font-semibold">{volunteer.name}</div>
-                  {volunteer.volunteerNumber && (
-                    <div className="font-mono text-xs text-primary">
-                      {volunteer.volunteerNumber}
-                    </div>
+                <div className="flex items-center gap-3">
+                  {volunteer.photoKey && (
+                    <img
+                      src={`/api/upload/photo?key=${encodeURIComponent(volunteer.photoKey)}`}
+                      alt={volunteer.name}
+                      className="h-14 w-14 shrink-0 rounded-full border object-cover"
+                    />
                   )}
+                  <div>
+                    <div className="text-lg font-semibold">{volunteer.name}</div>
+                  </div>
                 </div>
                 {volunteer.createdAt && (
                   <div className="text-xs text-muted-foreground">

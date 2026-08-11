@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  HeartHandshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ const superAdminNav = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Events", href: "/admin/events", icon: Calendar },
   { label: "Volunteers", href: "/admin/volunteers", icon: Users },
+  { label: "Devotees", href: "/admin/devotees", icon: HeartHandshake },
   { label: "Coordinators", href: "/admin/coordinators", icon: UserCog },
   { label: "Assignments", href: "/admin/assignments", icon: ClipboardList },
   { label: "Attendance", href: "/admin/attendance", icon: CheckCircle },
@@ -52,6 +54,7 @@ function SidebarContent({
               "Dashboard",
               "Events",
               "Volunteers",
+              "Devotees",
               "Assignments",
               "Attendance",
               "Reports",

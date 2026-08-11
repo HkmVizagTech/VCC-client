@@ -31,9 +31,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Users, Pencil, Search, Copy, Check, Eye } from "lucide-react";
+import { Plus, Users, Pencil, Search, Eye } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
 import { VolunteerDetailsDialog } from "@/components/volunteer-details-dialog";
+import { PhotoCapture } from "@/components/photo-capture";
 
 const SKILLS = [
   "medical",
@@ -67,28 +68,27 @@ const skillLabels: Record<string, string> = {
 
 interface Volunteer {
   _id: string;
-  volunteerNumber: string;
   name: string;
   phone: string;
-  whatsappNumber?: string;
   age?: number;
   gender?: string;
   locality?: string;
   occupation?: string;
   skills?: string[];
-  sevaToken?: string;
+  photoKey?: string;
   notes?: string;
   createdAt: string;
 }
 
 const emptyForm = {
   name: "",
-  whatsapp: "",
+  phone: "",
   age: "",
   gender: "",
   locality: "",
   occupation: "",
   skills: [] as string[],
+  photoKey: null as string | null,
   notes: "",
 };
 
@@ -107,7 +107,6 @@ export default function VolunteersPage() {
   const [editing, setEditing] = useState<Volunteer | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Volunteer | null>(null);
 
   const fetchVolunteers = useCallback(async () => {
@@ -161,8 +160,9 @@ export default function VolunteersPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.whatsapp) {
-      toast.error("Name and WhatsApp number are required");
+    const cleaned = form.phone.replace(/\D/g, "");
+    if (!form.name || cleaned.length !== 10) {
+      toast.error("Name and a valid 10-digit phone number are required");
       return;
     }
     setSubmitting(true);
@@ -171,13 +171,13 @@ export default function VolunteersPage() {
       const method = editing ? "PUT" : "POST";
       const body = {
         name: form.name,
-        phone: form.whatsapp,
-        whatsappNumber: form.whatsapp,
+        phone: cleaned,
         age: form.age ? Number(form.age) : undefined,
         gender: form.gender || undefined,
         locality: form.locality || undefined,
         occupation: form.occupation || undefined,
         skills: form.skills,
+        photoKey: form.photoKey || undefined,
         notes: form.notes || undefined,
       };
       const res = await authFetch(url, {
@@ -204,26 +204,16 @@ export default function VolunteersPage() {
     setEditing(v);
     setForm({
       name: v.name,
-      whatsapp: v.phone,
+      phone: v.phone,
       age: v.age !== undefined ? String(v.age) : "",
       gender: v.gender || "",
       locality: v.locality || "",
       occupation: v.occupation || "",
       skills: v.skills || [],
+      photoKey: v.photoKey || null,
       notes: v.notes || "",
     });
     setDialogOpen(true);
-  };
-
-  const copySevaToken = async (v: Volunteer) => {
-    if (!v.sevaToken) return;
-    try {
-      await navigator.clipboard.writeText(v.sevaToken);
-      setCopiedId(v._id);
-      setTimeout(() => setCopiedId(null), 1500);
-    } catch {
-      toast.error("Could not copy token");
-    }
   };
 
   if (
@@ -284,16 +274,23 @@ export default function VolunteersPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>WhatsApp Number</Label>
-                  <Input
-                    type="tel"
-                    value={form.whatsapp}
-                    onChange={(e) =>
-                      setForm({ ...form, whatsapp: e.target.value })
-                    }
-                    placeholder="+91 9876543210"
-                    disabled={!!editing}
-                  />
+                  <Label>Phone Number</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 items-center rounded-md border bg-muted px-2.5 text-sm text-muted-foreground">
+                      +91
+                    </span>
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      value={form.phone}
+                      onChange={(e) =>
+                        setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })
+                      }
+                      placeholder="10-digit number"
+                      disabled={!!editing}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -372,6 +369,14 @@ export default function VolunteersPage() {
                     );
                   })}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Photo</Label>
+                <PhotoCapture
+                  value={form.photoKey}
+                  onChange={(key) => setForm({ ...form, photoKey: key })}
+                  disabled={submitting}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -471,22 +476,31 @@ export default function VolunteersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
+                <TableHead className="w-10"></TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>WhatsApp</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Age</TableHead>
                 <TableHead>Gender</TableHead>
                 <TableHead>Locality</TableHead>
                 <TableHead>Skills</TableHead>
-                <TableHead>Seva Token</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {volunteers.map((v) => (
                 <TableRow key={v._id}>
-                  <TableCell className="font-mono text-xs">
-                    {v.volunteerNumber}
+                  <TableCell>
+                    {v.photoKey ? (
+                      <img
+                        src={`/api/upload/photo?key=${encodeURIComponent(v.photoKey)}`}
+                        alt={v.name}
+                        className="h-8 w-8 rounded-full border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                        {v.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="font-medium">
                     {v.name}
@@ -512,25 +526,6 @@ export default function VolunteersPage() {
                         ))
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {v.sevaToken ? (
-                      <button
-                        type="button"
-                        onClick={() => copySevaToken(v)}
-                        className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-primary"
-                        title="Copy seva token"
-                      >
-                        {v.sevaToken.slice(0, 8)}...
-                        {copiedId === v._id ? (
-                          <Check className="h-3 w-3 text-green-600" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </button>
-                    ) : (
-                      "—"
-                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

@@ -92,7 +92,7 @@ interface Service {
 interface EventDetail {
   _id: string;
   name: string;
-  slug: string;
+  eventId: string;
   description?: string;
   venue?: string;
   eventStart: string;
@@ -177,6 +177,10 @@ export default function EventDetailPage() {
   const handleSubmit = async () => {
     if (!form.name) {
       toast.error("Service name is required");
+      return;
+    }
+    if (!editing && !form.coordinatorId) {
+      toast.error("Coordinator is required");
       return;
     }
     setSubmitting(true);
@@ -301,7 +305,7 @@ export default function EventDetailPage() {
     if (!event) return;
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/events/${event.slug}/register`
+        `${window.location.origin}/events/${event.eventId}/register`
       );
       toast.success("Registration link copied");
     } catch {

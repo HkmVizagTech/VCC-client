@@ -5,7 +5,7 @@ export interface IService extends Document {
   name: string;
   description?: string;
   requiredVolunteers: number;
-  coordinatorId?: Types.ObjectId;
+  coordinatorId: Types.ObjectId;
   status: "active" | "inactive";
   createdBy?: Types.ObjectId;
   createdAt: Date;
@@ -18,7 +18,11 @@ const serviceSchema = new Schema<IService>(
     name: { type: String, required: true, trim: true },
     description: String,
     requiredVolunteers: { type: Number, default: 0 },
-    coordinatorId: { type: Schema.Types.ObjectId, ref: "user" },
+    coordinatorId: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
+    },
     status: {
       type: String,
       enum: ["active", "inactive"],

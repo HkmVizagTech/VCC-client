@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const registrations = await Registration.find(filter)
       .populate("volunteerId")
-      .populate("eventId", "name slug venue eventStart eventEnd")
+      .populate("eventId", "name eventId venue eventStart eventEnd")
       .populate("serviceId", "name")
       .sort({ createdAt: -1 });
 

@@ -50,7 +50,6 @@ interface Volunteer {
   _id: string;
   name: string;
   phone: string;
-  volunteerNumber: string;
 }
 
 interface Registration {
@@ -279,7 +278,6 @@ export default function AttendancePage() {
         const vol = r.volunteerId;
         return (
           vol?.name?.toLowerCase().includes(q) ||
-          vol?.volunteerNumber?.toLowerCase().includes(q) ||
           vol?.phone?.includes(q)
         );
       });
@@ -389,7 +387,7 @@ export default function AttendancePage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Name, HKV number, phone..."
+                placeholder="Name or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -497,7 +495,6 @@ export default function AttendancePage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Volunteer</TableHead>
-                <TableHead>HKV Number</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Status</TableHead>
@@ -514,11 +511,6 @@ export default function AttendancePage() {
                   <TableRow key={reg._id}>
                     <TableCell className="font-medium">
                       {vol?.name || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs">
-                        {vol?.volunteerNumber || "—"}
-                      </span>
                     </TableCell>
                     <TableCell>{vol?.phone || "—"}</TableCell>
                     <TableCell>

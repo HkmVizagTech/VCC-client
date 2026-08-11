@@ -17,16 +17,14 @@ export const VOLUNTEER_SKILLS = [
 export type VolunteerSkill = (typeof VOLUNTEER_SKILLS)[number];
 
 export interface IVolunteer extends Document {
-  volunteerNumber: string;
   name: string;
   phone: string;
-  whatsappNumber?: string;
   age?: number;
   gender?: "male" | "female" | "other";
   locality?: string;
   occupation?: string;
   skills: VolunteerSkill[];
-  sevaToken: string;
+  photoKey?: string;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -34,16 +32,14 @@ export interface IVolunteer extends Document {
 
 const volunteerSchema = new Schema<IVolunteer>(
   {
-    volunteerNumber: { type: String, required: true, unique: true },
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true },
-    whatsappNumber: { type: String, trim: true },
     age: Number,
     gender: { type: String, enum: ["male", "female", "other"] },
     locality: { type: String, trim: true },
     occupation: { type: String, trim: true },
     skills: [{ type: String, enum: VOLUNTEER_SKILLS }],
-    sevaToken: { type: String, unique: true },
+    photoKey: { type: String, trim: true },
     notes: String,
   },
   { timestamps: true, versionKey: false }

@@ -21,6 +21,7 @@ export const CUSTOM_FIELD_TYPES = [
   "radio",
   "checkbox",
   "date",
+  "devotee_select",
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
@@ -30,14 +31,15 @@ export interface ICustomField {
   label: string;
   type: CustomFieldType;
   required: boolean;
+  important?: boolean;
   options?: string[];
   placeholder?: string;
   helpText?: string;
 }
 
 export interface IEvent extends Document {
+  eventId: string;
   name: string;
-  slug: string;
   description?: string;
   venue?: string;
   bannerImage?: string;
@@ -47,8 +49,9 @@ export interface IEvent extends Document {
   eventEnd: Date;
   availabilitySlots?: string[];
   customFields?: ICustomField[];
+  photoRequired?: boolean;
   status: EventStatus;
-  coordinatorId?: Types.ObjectId;
+  coordinatorId: Types.ObjectId;
   createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -60,6 +63,7 @@ const customFieldSchema = new Schema<ICustomField>(
     label: { type: String, required: true, trim: true },
     type: { type: String, enum: CUSTOM_FIELD_TYPES, required: true },
     required: { type: Boolean, default: false },
+    important: { type: Boolean, default: false },
     options: [{ type: String, trim: true }],
     placeholder: { type: String, trim: true },
     helpText: { type: String, trim: true },
@@ -69,14 +73,14 @@ const customFieldSchema = new Schema<ICustomField>(
 
 const eventSchema = new Schema<IEvent>(
   {
-    name: { type: String, required: true, trim: true },
-    slug: {
+    eventId: {
       type: String,
       unique: true,
       required: true,
-      lowercase: true,
+      uppercase: true,
       trim: true,
     },
+    name: { type: String, required: true, trim: true },
     description: String,
     venue: { type: String, trim: true },
     bannerImage: String,
@@ -86,12 +90,17 @@ const eventSchema = new Schema<IEvent>(
     eventEnd: { type: Date, required: true },
     availabilitySlots: [{ type: String, trim: true }],
     customFields: [customFieldSchema],
+    photoRequired: { type: Boolean, default: false },
     status: {
       type: String,
       enum: EVENT_STATUSES,
       default: "draft",
     },
-    coordinatorId: { type: Schema.Types.ObjectId, ref: "user" },
+    coordinatorId: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: "user" },
   },
   { timestamps: true, versionKey: false }

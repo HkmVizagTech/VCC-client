@@ -16,7 +16,7 @@ async function getEvents(): Promise<
   {
     _id: string;
     name: string;
-    slug: string;
+    eventId: string;
     description?: string;
     bannerImage?: string;
     venue?: string;
@@ -86,7 +86,7 @@ export default async function PublicEventsPage() {
             {events.map((event) => (
               <Link
                 key={event._id}
-                href={`/events/${event.slug}`}
+                href={`/events/${event.eventId}`}
                 className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
               >
                 {event.bannerImage && (

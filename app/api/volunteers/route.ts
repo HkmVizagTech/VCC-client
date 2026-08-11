@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import { Volunteer } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
-import { generateVolunteerNumber } from "@/lib/utils/volunteer-number";
+import { validatePhone } from "@/lib/utils/phone";
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,14 +55,22 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const body = await req.json();
 
-    if (!body.name || !body.phone) {
+    if (!body.name) {
       return NextResponse.json(
-        { message: "Name and phone are required" },
+        { message: "Name is required" },
         { status: 400 }
       );
     }
 
-    const existing = await Volunteer.findOne({ phone: body.phone });
+    const phoneResult = validatePhone(body.phone);
+    if (!phoneResult.ok) {
+      return NextResponse.json(
+        { message: phoneResult.message },
+        { status: 400 }
+      );
+    }
+
+    const existing = await Volunteer.findOne({ phone: phoneResult.phone });
     if (existing) {
       return NextResponse.json(
         { message: "Phone number already registered" },
@@ -71,13 +78,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const volunteerNumber = await generateVolunteerNumber();
-    const sevaToken = crypto.randomBytes(32).toString("hex");
-
     const volunteer = await Volunteer.create({
       ...body,
-      volunteerNumber,
-      sevaToken,
+      phone: phoneResult.phone,
     });
 
     return NextResponse.json(

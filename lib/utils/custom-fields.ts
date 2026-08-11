@@ -32,6 +32,7 @@ export function sanitizeCustomFields(input: unknown): ICustomField[] {
       label,
       type,
       required: Boolean(item.required),
+      important: Boolean(item.important),
       placeholder:
         typeof item.placeholder === "string" ? item.placeholder.trim() : undefined,
       helpText:
@@ -85,7 +86,7 @@ export function validateAndNormalizeAnswers(
       (Array.isArray(raw) && raw.length === 0);
 
     if (isEmpty) {
-      if (field.required) {
+      if (field.required || field.important) {
         return { ok: false, message: `"${field.label}" is required` };
       }
       continue;
@@ -104,7 +105,16 @@ export function validateAndNormalizeAnswers(
       const cleaned = arr
         .map((v) => (typeof v === "string" ? v : String(v)))
         .filter((v) => field.options?.includes(v));
-      if (field.required && cleaned.length === 0) {
+      if ((field.required || field.important) && cleaned.length === 0) {
+        return { ok: false, message: `"${field.label}" is required` };
+      }
+      value = cleaned;
+    } else if (field.type === "devotee_select") {
+      const arr = Array.isArray(raw) ? raw : [raw];
+      const cleaned = arr
+        .map((v) => (typeof v === "string" ? v.trim() : String(v)))
+        .filter((v) => v.length > 0);
+      if ((field.required || field.important) && cleaned.length === 0) {
         return { ok: false, message: `"${field.label}" is required` };
       }
       value = cleaned;

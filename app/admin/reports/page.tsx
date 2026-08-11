@@ -34,10 +34,8 @@ interface Registration {
   _id: string;
   volunteerId: {
     _id: string;
-    volunteerNumber: string;
     name: string;
     phone: string;
-    whatsappNumber?: string;
     age?: number;
     gender?: string;
     locality?: string;
@@ -143,10 +141,8 @@ export default function ReportsPage() {
     }
 
     const header = [
-      "Volunteer Number",
       "Name",
       "Phone",
-      "WhatsApp",
       "Age",
       "Gender",
       "Locality",
@@ -159,10 +155,8 @@ export default function ReportsPage() {
     ];
 
     const rows = registrations.map((r) => [
-      r.volunteerId?.volunteerNumber ?? "",
       r.volunteerId?.name ?? "",
       r.volunteerId?.phone ?? "",
-      r.volunteerId?.whatsappNumber ?? r.volunteerId?.phone ?? "",
       r.volunteerId?.age != null ? String(r.volunteerId.age) : "",
       r.volunteerId?.gender ?? "",
       r.volunteerId?.locality ?? "",
@@ -264,7 +258,6 @@ export default function ReportsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vol #</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Gender</TableHead>
@@ -279,9 +272,6 @@ export default function ReportsPage() {
             <TableBody>
               {registrations.map((r) => (
                 <TableRow key={r._id}>
-                  <TableCell className="font-mono text-xs">
-                    {r.volunteerId?.volunteerNumber ?? "—"}
-                  </TableCell>
                   <TableCell className="font-medium">
                     {r.volunteerId?.name ?? "—"}
                   </TableCell>

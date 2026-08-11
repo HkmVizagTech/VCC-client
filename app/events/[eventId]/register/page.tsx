@@ -29,10 +29,9 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  Copy,
-  Check,
   Loader2,
 } from "lucide-react";
+import { PhotoCapture } from "@/components/photo-capture";
 
 const SKILLS = [
   "medical",
@@ -66,12 +65,13 @@ const skillLabels: Record<string, string> = {
 
 const emptyForm = {
   name: "",
-  whatsapp: "",
+  phone: "",
   age: "",
   gender: "",
   locality: "",
   occupation: "",
   skills: [] as string[],
+  photoKey: null as string | null,
   serviceAvailability: [] as ServiceAvailabilityEntry[],
   customAnswers: {} as CustomFieldAnswers,
   notes: "",
@@ -79,6 +79,7 @@ const emptyForm = {
 
 interface RegisterEvent {
   _id: string;
+  eventId: string;
   name: string;
   status: string;
   eventStart: string;
@@ -86,18 +87,18 @@ interface RegisterEvent {
   venue?: string;
   availabilitySlots?: string[];
   customFields?: CustomFieldDef[];
+  photoRequired?: boolean;
 }
 
 interface SuccessData {
-  volunteerNumber: string;
-  sevaToken: string;
+  phone: string;
   name: string;
   eventName: string;
 }
 
 export default function RegisterPage() {
-  const params = useParams<{ slug: string }>();
-  const slug = params.slug;
+  const params = useParams<{ eventId: string }>();
+  const eventId = params.eventId;
 
   const [event, setEvent] = useState<RegisterEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,14 +106,12 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<SuccessData | null>(null);
   const [alreadyRegistered, setAlreadyRegistered] = useState<{
     name: string;
-    volunteerNumber: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
   const fetchEvent = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/events/public/${slug}`, {
+      const res = await fetch(`${API_URL}/api/events/public/${eventId}`, {
         cache: "no-store",
       });
       if (res.ok) {
@@ -124,7 +123,7 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [eventId]);
 
   useEffect(() => {
     fetchEvent();
@@ -142,10 +141,19 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
-    if (!form.name || !form.whatsapp) {
-      setSuccess(null);
+
+    const cleaned = form.phone.replace(/\D/g, "");
+    if (!form.name || cleaned.length !== 10) {
+      if (cleaned.length !== 10) {
+        alert("Please enter a valid 10-digit phone number");
+      }
       return;
     }
+    if (event.photoRequired && !form.photoKey) {
+      alert("A photo is required for this event");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`${API_URL}/api/registrations`, {
@@ -154,13 +162,13 @@ export default function RegisterPage() {
         body: JSON.stringify({
           eventId: event._id,
           name: form.name,
-          phone: form.whatsapp,
-          whatsappNumber: form.whatsapp,
+          phone: cleaned,
           age: form.age ? Number(form.age) : undefined,
           gender: form.gender || undefined,
           locality: form.locality || undefined,
           occupation: form.occupation || undefined,
           skills: form.skills,
+          photoKey: form.photoKey || undefined,
           serviceAvailability: form.serviceAvailability,
           customAnswers: form.customAnswers,
           notes: form.notes || undefined,
@@ -169,15 +177,13 @@ export default function RegisterPage() {
       const data = await res.json();
       if (res.ok) {
         setSuccess({
-          volunteerNumber: data.volunteer.volunteerNumber,
-          sevaToken: data.volunteer.sevaToken,
+          phone: data.volunteer.phone,
           name: data.volunteer.name,
           eventName: event.name,
         });
       } else if (res.status === 409) {
         setAlreadyRegistered({
           name: data.volunteer?.name || "you",
-          volunteerNumber: data.volunteer?.volunteerNumber || "",
         });
       } else {
         alert(data.message || "Registration failed. Please try again.");
@@ -186,17 +192,6 @@ export default function RegisterPage() {
       alert("Could not reach the server. Please try again.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const copyToken = async () => {
-    if (!success) return;
-    try {
-      await navigator.clipboard.writeText(success.sevaToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable */
     }
   };
 
@@ -223,7 +218,7 @@ export default function RegisterPage() {
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <Link
-          href={`/events/${slug}`}
+          href={`/events/${eventId}`}
           className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -251,40 +246,20 @@ export default function RegisterPage() {
               .
             </p>
 
-            <div className="mx-auto mt-6 max-w-md space-y-3 rounded-lg border bg-muted/40 p-5">
+            <div className="mx-auto mt-6 max-w-md rounded-lg border bg-muted/40 p-5">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  Volunteer Number
+                  Registered Phone
                 </span>
                 <span className="font-mono font-bold text-primary">
-                  {success.volunteerNumber}
+                  +91 {success.phone}
                 </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">
-                  Seva Token
-                </span>
-                <button
-                  type="button"
-                  onClick={copyToken}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-xs hover:bg-accent"
-                  title="Copy seva token"
-                >
-                  <span className="truncate">
-                    {success.sevaToken.slice(0, 12)}...
-                  </span>
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 shrink-0" />
-                  )}
-                </button>
               </div>
             </div>
 
             <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
-              Save your seva token securely. You will need it to track your
-              assignment and confirm attendance for this seva.
+              Use your phone number to look up your seva assignments on the My
+              Seva page.
             </p>
 
             <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -309,12 +284,12 @@ export default function RegisterPage() {
             <p className="mt-2 text-muted-foreground">
               You are already registered for this event.
             </p>
-            <p className="mt-3 text-sm">
-              Volunteer{" "}
-              <span className="font-mono font-bold text-primary">
-                {alreadyRegistered.volunteerNumber}
-              </span>{" "}
-              registered under the name {alreadyRegistered.name}.
+            <p className="mt-3 text-sm text-muted-foreground">
+              Registered under the name{" "}
+              <span className="font-medium text-foreground">
+                {alreadyRegistered.name}
+              </span>
+              .
             </p>
             <Link
               href="/events"
@@ -371,18 +346,42 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="whatsapp">WhatsApp Number *</Label>
-                  <Input
-                    id="whatsapp"
-                    type="tel"
-                    value={form.whatsapp}
-                    onChange={(e) =>
-                      setForm({ ...form, whatsapp: e.target.value })
-                    }
-                    placeholder="+91 9876543210"
-                    required
-                  />
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 items-center rounded-md border bg-muted px-2.5 text-sm text-muted-foreground">
+                      +91
+                    </span>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      value={form.phone}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          phone: e.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                      placeholder="10-digit number"
+                      required
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  Photo
+                  {event?.photoRequired && (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
+                <PhotoCapture
+                  value={form.photoKey}
+                  onChange={(key) => setForm({ ...form, photoKey: key })}
+                  disabled={submitting}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

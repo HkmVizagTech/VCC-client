@@ -40,7 +40,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json();
 
     delete body.phone;
-    delete body.volunteerNumber;
 
     const volunteer = await Volunteer.findByIdAndUpdate(id, body, {
       new: true,

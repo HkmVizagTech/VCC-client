@@ -1,5 +1,4 @@
 export { User, type IUser } from "./user.model";
-export { Counter, type ICounter } from "./counter.model";
 export {
   Volunteer,
   type IVolunteer,
@@ -13,10 +12,10 @@ export {
   type EventStatus,
 } from "./event.model";
 export { Service, type IService } from "./service.model";
+export { Devotee, type IDevotee } from "./devotee.model";
 export {
   Registration,
   type IRegistration,
   REGISTRATION_STATUSES,
   type RegistrationStatus,
 } from "./registration.model";
-export { Otp, type IOtp } from "./otp.model";

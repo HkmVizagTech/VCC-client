@@ -61,8 +61,6 @@ interface RegisteredVolunteer {
   _id: string;
   name: string;
   phone: string;
-  whatsappNumber?: string;
-  volunteerNumber: string;
   age?: number;
   gender?: string;
   locality?: string;
@@ -220,7 +218,6 @@ export default function AssignmentsPage() {
       return (
         vol.name.toLowerCase().includes(q) ||
         vol.phone.includes(q) ||
-        vol.volunteerNumber.toLowerCase().includes(q) ||
         (vol.locality || "").toLowerCase().includes(q) ||
         (vol.skills || []).some((s) => s.toLowerCase().includes(q))
       );
@@ -584,18 +581,9 @@ export default function AssignmentsPage() {
                             <div className="font-medium">
                               {vol?.name || "—"}
                             </div>
-                            <div className="font-mono text-xs text-muted-foreground">
-                              {vol?.volunteerNumber || "—"}
-                            </div>
                           </TableCell>
                           <TableCell>
                             {vol?.phone || "—"}
-                            {vol?.whatsappNumber &&
-                              vol.whatsappNumber !== vol.phone && (
-                                <div className="text-xs text-muted-foreground">
-                                  WA: {vol.whatsappNumber}
-                                </div>
-                              )}
                           </TableCell>
                           <TableCell>
                             <span className="text-xs">
@@ -754,9 +742,11 @@ export default function AssignmentsPage() {
                                   <span className="font-medium truncate block">
                                     {vol?.name || "—"}
                                   </span>
-                                  <span className="font-mono text-xs text-muted-foreground">
-                                    {vol?.volunteerNumber || ""}
-                                  </span>
+                                  {vol?.phone && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {vol.phone}
+                                    </span>
+                                  )}
                                 </div>
                                 <Badge
                                   variant={

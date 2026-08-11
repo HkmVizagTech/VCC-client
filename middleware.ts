@@ -4,7 +4,6 @@ const PUBLIC_API_PREFIXES = [
   "/api/events/public",
   "/api/registrations",
   "/api/volunteers/by-phone",
-  "/api/volunteers/by-token",
   "/api/seva",
 ];
 
@@ -57,7 +56,6 @@ export const config = {
     "/api/registrations/:path*",
     "/api/registrations",
     "/api/volunteers/by-phone/:path*",
-    "/api/volunteers/by-token/:path*",
     "/api/seva/:path*",
   ],
 };

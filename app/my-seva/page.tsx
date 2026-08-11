@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import {
   Calendar,
@@ -26,7 +26,6 @@ import { toast } from "sonner";
 interface Coordinator {
   name: string;
   phone?: string;
-  email?: string;
 }
 
 interface ServiceInfo {
@@ -52,8 +51,7 @@ interface Registration {
 
 interface Volunteer {
   name: string;
-  volunteerNumber?: string;
-  phone?: string;
+  phone: string;
 }
 
 interface SevaData {
@@ -169,9 +167,7 @@ function SevaCard({
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-medium">
-                  {service.coordinatorId.name}
-                </span>
+                <span className="font-medium">{service.coordinatorId.name}</span>
               </div>
               {service.coordinatorId.phone && (
                 <div className="flex items-center gap-1.5">
@@ -253,159 +249,58 @@ function SevaCard({
   );
 }
 
-/* ---------- OTP Lookup Page ---------- */
-
-type Step = "phone" | "otp" | "result";
+/* ---------- Main Page ---------- */
 
 export default function MySevaLookupPage() {
-  const [step, setStep] = useState<Step>("phone");
+  const [step, setStep] = useState<"phone" | "result">("phone");
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
   const [data, setData] = useState<SevaData | null>(null);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  /* Countdown for resend */
-  const startCountdown = useCallback(() => {
-    setCountdown(30);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  /* Send OTP */
-  async function handleSendOtp() {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
-
-    setSending(true);
+  const fetchSeva = useCallback(async (cleanedPhone: string) => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/seva/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned }),
-      });
+      const res = await fetch(`${API_URL}/api/volunteers/by-phone/${cleanedPhone}`);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Failed to send OTP");
-      }
-      toast.success("OTP sent to your phone");
-      setStep("otp");
-      startCountdown();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to send OTP");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  /* Resend OTP */
-  async function handleResend() {
-    const cleaned = phone.replace(/\D/g, "");
-    setSending(true);
-    try {
-      const res = await fetch(`${API_URL}/api/seva/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Failed to resend OTP");
-      }
-      toast.success("OTP resent");
-      startCountdown();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to resend OTP");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  /* Verify OTP */
-  async function handleVerifyOtp() {
-    if (otp.length !== 6) {
-      toast.error("Please enter the 6-digit OTP");
-      return;
-    }
-
-    const cleaned = phone.replace(/\D/g, "");
-    setVerifying(true);
-    try {
-      const res = await fetch(`${API_URL}/api/seva/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned, otp }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Invalid OTP");
+        throw new Error(body?.message || "No volunteer found with this number");
       }
       const json = await res.json();
       setData(json);
       setStep("result");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Verification failed");
+      toast.error(err instanceof Error ? err.message : "Could not find your records");
     } finally {
-      setVerifying(false);
+      setLoading(false);
     }
-  }
+  }, []);
 
-  /* Re-fetch after action */
-  async function refetch() {
+  async function handleLookup() {
     const cleaned = phone.replace(/\D/g, "");
-    try {
-      const res = await fetch(`${API_URL}/api/seva/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned, otp }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch {
-      // silent refresh failure
+    if (cleaned.length !== 10) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
     }
+    await fetchSeva(cleaned);
   }
 
   async function handleAction(registrationId: string, action: "confirm" | "decline") {
     try {
-      const res = await fetch(
-        `${API_URL}/api/seva/${registrationId}/${action}`,
-        { method: "PUT" }
-      );
+      const res = await fetch(`${API_URL}/api/seva/${registrationId}/${action}`, {
+        method: "PUT",
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `Failed to ${action}`);
       }
       toast.success(action === "confirm" ? "Seva confirmed!" : "Seva declined");
-      await refetch();
+      await fetchSeva(phone.replace(/\D/g, ""));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : `Failed to ${action}`);
       throw err;
     }
   }
 
-  /* ---------- Phone entry step ---------- */
   if (step === "phone") {
     return (
       <div className="flex flex-col items-center pt-8">
@@ -419,14 +314,11 @@ export default function MySevaLookupPage() {
 
         <div className="mt-8 w-full max-w-xs space-y-4">
           <div>
-            <label
-              htmlFor="phone"
-              className="mb-1.5 block text-sm font-medium"
-            >
+            <label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
               Phone Number
             </label>
             <div className="flex items-center gap-2">
-              <span className="flex h-8 items-center rounded-lg border bg-muted px-2.5 text-sm text-muted-foreground">
+              <span className="flex h-9 items-center rounded-md border bg-muted px-2.5 text-sm text-muted-foreground">
                 +91
               </span>
               <Input
@@ -437,7 +329,7 @@ export default function MySevaLookupPage() {
                 maxLength={10}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                onKeyDown={(e) => e.key === "Enter" && handleLookup()}
               />
             </div>
           </div>
@@ -445,111 +337,26 @@ export default function MySevaLookupPage() {
           <Button
             className="w-full gap-2"
             size="lg"
-            disabled={phone.replace(/\D/g, "").length !== 10 || sending}
-            onClick={handleSendOtp}
+            disabled={phone.replace(/\D/g, "").length !== 10 || loading}
+            onClick={handleLookup}
           >
-            {sending ? (
+            {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <ArrowRight className="h-4 w-4" />
             )}
-            Send OTP
+            View My Seva
           </Button>
         </div>
       </div>
     );
   }
 
-  /* ---------- OTP verification step ---------- */
-  if (step === "otp") {
-    return (
-      <div className="flex flex-col items-center pt-8">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-          <Shield className="h-6 w-6 text-primary" />
-        </div>
-        <h2 className="mt-4 text-xl font-bold">Verify OTP</h2>
-        <p className="mt-1 text-center text-sm text-muted-foreground">
-          Enter the 6-digit code sent to{" "}
-          <span className="font-medium text-foreground">
-            +91 {phone.slice(0, 2)}****{phone.slice(-2)}
-          </span>
-        </p>
-
-        <div className="mt-8 w-full max-w-xs space-y-4">
-          <div>
-            <label htmlFor="otp" className="mb-1.5 block text-sm font-medium">
-              OTP Code
-            </label>
-            <Input
-              id="otp"
-              type="text"
-              inputMode="numeric"
-              placeholder="Enter 6-digit OTP"
-              maxLength={6}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
-              className="text-center text-lg tracking-[0.3em]"
-            />
-          </div>
-
-          <Button
-            className="w-full gap-2"
-            size="lg"
-            disabled={otp.length !== 6 || verifying}
-            onClick={handleVerifyOtp}
-          >
-            {verifying ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle className="h-4 w-4" />
-            )}
-            Verify
-          </Button>
-
-          <div className="text-center text-sm">
-            {countdown > 0 ? (
-              <span className="text-muted-foreground">
-                Resend OTP in{" "}
-                <span className="font-medium text-foreground">
-                  {countdown}s
-                </span>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={sending}
-                className="font-medium text-primary hover:underline disabled:opacity-50"
-              >
-                {sending ? "Sending..." : "Resend OTP"}
-              </button>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setStep("phone");
-              setOtp("");
-            }}
-            className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
-          >
-            Change phone number
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ---------- Results step ---------- */
   if (!data) return null;
-
   const { volunteer, registrations } = data;
 
   return (
     <div className="space-y-5">
-      {/* Volunteer info */}
       <div className="rounded-xl border bg-primary/5 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
@@ -557,16 +364,11 @@ export default function MySevaLookupPage() {
           </div>
           <div>
             <h2 className="font-semibold">{volunteer.name}</h2>
-            {volunteer.volunteerNumber && (
-              <p className="text-sm text-muted-foreground">
-                HKV-{volunteer.volunteerNumber}
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground">+91 {volunteer.phone}</p>
           </div>
         </div>
       </div>
 
-      {/* Section heading */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
@@ -580,19 +382,13 @@ export default function MySevaLookupPage() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            setStep("phone");
-            setPhone("");
-            setOtp("");
-            setData(null);
-          }}
+          onClick={() => { setStep("phone"); setPhone(""); setData(null); }}
           className="text-xs font-medium text-primary hover:underline"
         >
           Different number
         </button>
       </div>
 
-      {/* Seva cards */}
       {registrations.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-14 text-center">
           <Shield className="h-8 w-8 text-muted-foreground/50" />
@@ -604,11 +400,7 @@ export default function MySevaLookupPage() {
       ) : (
         <div className="space-y-3">
           {registrations.map((reg) => (
-            <SevaCard
-              key={reg._id}
-              registration={reg}
-              onAction={handleAction}
-            />
+            <SevaCard key={reg._id} registration={reg} onAction={handleAction} />
           ))}
         </div>
       )}

@@ -18,6 +18,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!body.coordinatorId) {
+      return NextResponse.json(
+        { message: "Coordinator is required" },
+        { status: 400 }
+      );
+    }
+
     const event = await Event.findById(body.eventId);
     if (!event) {
       return NextResponse.json(
