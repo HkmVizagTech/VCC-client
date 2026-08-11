@@ -25,9 +25,10 @@ export function serviceAvailabilitySummary(
 ): string {
   if (!entries || entries.length === 0) return "";
   return entries
-    .map(
-      (e) =>
-        `${format(new Date(`${e.date}T00:00:00`), "MMM d")}: ${e.timeSlot}`
+    .map((e) =>
+      e.date
+        ? `${format(new Date(`${e.date}T00:00:00`), "MMM d")}: ${e.timeSlot}`
+        : e.timeSlot
     )
     .join(" · ");
 }
