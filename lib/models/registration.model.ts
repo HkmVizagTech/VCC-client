@@ -52,7 +52,7 @@ const registrationSchema = new Schema<IRegistration>(
     serviceAvailability: [
       {
         _id: false,
-        date: { type: String, required: true },
+        date: { type: String, default: "" },
         timeSlot: { type: String, required: true },
       },
     ],
