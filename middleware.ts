@@ -5,6 +5,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/registrations",
   "/api/volunteers/by-phone",
   "/api/seva",
+  "/api/devotees",
 ];
 
 const ALLOWED_ORIGINS = [
@@ -57,5 +58,7 @@ export const config = {
     "/api/registrations",
     "/api/volunteers/by-phone/:path*",
     "/api/seva/:path*",
+    "/api/devotees/:path*",
+    "/api/devotees",
   ],
 };
