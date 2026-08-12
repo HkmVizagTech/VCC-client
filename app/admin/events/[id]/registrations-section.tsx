@@ -49,7 +49,6 @@ import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   assigned: "Assigned",
-  confirmed: "Confirmed",
   attended: "Attended",
   no_show: "No Show",
   cancelled: "Cancelled",
@@ -58,16 +57,14 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_STYLES: Record<string, string> = {
   registered: "outline",
   assigned: "secondary",
-  confirmed: "default",
   attended: "default",
   no_show: "destructive",
   cancelled: "secondary",
 } as const;
 
 const NEXT_STATUSES: Record<string, string[]> = {
-  registered: ["assigned", "confirmed", "cancelled"],
-  assigned: ["confirmed", "cancelled"],
-  confirmed: ["attended", "no_show", "cancelled"],
+  registered: ["assigned", "cancelled"],
+  assigned: ["attended", "no_show", "cancelled"],
   attended: [],
   no_show: [],
   cancelled: [],

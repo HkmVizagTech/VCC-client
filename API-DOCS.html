@@ -194,28 +194,24 @@
   <pre><code>{ "phone": "9876543210", "otp": "123456" }</code></pre>
   <p>200 → same shape as #5. 400 → <code>{ "message": "Invalid or expired OTP" }</code> (10-min expiry, one-time use).</p>
 
-  <h3>Bonus — Confirm / Decline a seva</h3>
-  <p><span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/confirm</span> &nbsp;&middot;&nbsp; <span class="method">PUT</span> <span class="endpoint">/api/seva/:registrationId/decline</span></p>
-  <pre><code>curl -X PUT https://vcc-client.vercel.app/api/seva/6a796695123edd9fb32a061b/confirm</code></pre>
-  <pre><code>{ "message": "Seva confirmed", "registration": { "status": "confirmed", ... } }</code></pre>
-  <p>Confirm allowed when status is <code>assigned</code> or <code>registered</code>. Decline blocked when <code>attended</code>/<code>no_show</code>/<code>cancelled</code>.</p>
+  <h3>Note — Status changes are admin-only</h3>
+  <p>The old <code>PUT /api/seva/:registrationId/confirm</code> and <code>PUT /api/seva/:registrationId/decline</code> endpoints were <strong>removed</strong> along with the <code>confirmed</code> status. Volunteers can no longer change their own status — the app only reads seva data. All status transitions happen in the admin panel via <code>PUT /api/registrations/:id/status</code>.</p>
 </section>
 
 <section id="lifecycle">
   <h2>Part 3 — Status Lifecycle</h2>
-  <pre><code>registered ──▶ assigned ──▶ confirmed ──▶ attended
+  <pre><code>registered ──▶ assigned ──▶ attended
       │              │
-      └─▶ cancelled  └─(admin assigns service)─▶ confirmed</code></pre>
+      └─▶ cancelled  └─(admin assigns service)─▶ assigned</code></pre>
   <table>
     <tr><th>Status</th><th>Set by</th><th>Meaning</th></tr>
     <tr><td><code>registered</code></td><td>App / website</td><td>Signed up for event</td></tr>
     <tr><td><code>assigned</code></td><td>Admin</td><td>Put on a service (Parking, etc.)</td></tr>
-    <tr><td><code>confirmed</code></td><td>Volunteer</td><td>Said yes</td></tr>
     <tr><td><code>attended</code></td><td>Coordinator</td><td>Showed up</td></tr>
     <tr><td><code>no_show</code></td><td>Coordinator</td><td>Didn't show</td></tr>
-    <tr><td><code>cancelled</code></td><td>Volunteer / Admin</td><td>Backed out</td></tr>
+    <tr><td><code>cancelled</code></td><td>Admin</td><td>Backed out</td></tr>
   </table>
-  <p>The app only reads these and lets volunteers set <code>confirmed</code> / <code>cancelled</code>.</p>
+  <p>The app only reads these statuses. All status changes are admin-side via <code>PUT /api/registrations/:id/status</code>.</p>
 </section>
 
 <section id="full">
@@ -232,8 +228,6 @@
     <tr><td>GET</td><td>/api/seva/:token</td><td>Volunteer's seva</td></tr>
     <tr><td>POST</td><td>/api/seva/send-otp</td><td>Send OTP</td></tr>
     <tr><td>POST</td><td>/api/seva/verify-otp</td><td>Verify OTP</td></tr>
-    <tr><td>PUT</td><td>/api/seva/:id/confirm</td><td>Confirm seva</td></tr>
-    <tr><td>PUT</td><td>/api/seva/:id/decline</td><td>Decline seva</td></tr>
   </table>
   <h3>Admin (JWT required — web panel)</h3>
   <table>

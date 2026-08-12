@@ -13,7 +13,6 @@ interface DashboardStats {
   activeEvents: number;
   totalRegistrations: number;
   assigned: number;
-  confirmed: number;
   attended: number;
   byStatus: Record<string, number>;
   recentRegistrations: { _id: string; count: number }[];
@@ -114,7 +113,6 @@ export default function AdminDashboard() {
   const funnelSteps = [
     { label: "Registered", value: stats?.byStatus?.registered ?? 0 },
     { label: "Assigned", value: stats?.assigned ?? 0 },
-    { label: "Confirmed", value: stats?.confirmed ?? 0 },
     { label: "Attended", value: stats?.attended ?? 0 },
   ];
   const funnelMax = Math.max(...funnelSteps.map((s) => s.value), 1);

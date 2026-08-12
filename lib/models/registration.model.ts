@@ -3,7 +3,6 @@ import mongoose, { Schema, type Document, type Types } from "mongoose";
 export const REGISTRATION_STATUSES = [
   "registered",
   "assigned",
-  "confirmed",
   "attended",
   "no_show",
   "cancelled",

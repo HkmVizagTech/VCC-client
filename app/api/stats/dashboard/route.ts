@@ -61,7 +61,6 @@ export async function GET(req: NextRequest) {
       activeEvents,
       totalRegistrations,
       assigned: statusMap.assigned || 0,
-      confirmed: statusMap.confirmed || 0,
       attended: statusMap.attended || 0,
       recentRegistrations,
       skillsDistribution,

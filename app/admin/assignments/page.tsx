@@ -42,7 +42,6 @@ import { RefreshButton } from "@/components/refresh-button";
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   assigned: "Assigned",
-  confirmed: "Confirmed",
   attended: "Attended",
   no_show: "No Show",
   cancelled: "Cancelled",
@@ -51,7 +50,6 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_STYLES: Record<string, string> = {
   registered: "outline",
   assigned: "secondary",
-  confirmed: "default",
   attended: "default",
   no_show: "destructive",
   cancelled: "secondary",

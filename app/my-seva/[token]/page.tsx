@@ -14,13 +14,11 @@ import {
   XCircle,
   Shield,
   Clock,
-  Loader2,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 
 /* ---------- Types ---------- */
 
@@ -70,10 +68,8 @@ const statusConfig: Record<
 > = {
   registered: { label: "Registered", variant: "secondary", icon: Clock },
   assigned: { label: "Assigned", variant: "default", icon: Shield },
-  confirmed: { label: "Confirmed", variant: "default", icon: CheckCircle },
   attended: { label: "Attended", variant: "default", icon: CheckCircle },
   cancelled: { label: "Cancelled", variant: "destructive", icon: XCircle },
-  declined: { label: "Declined", variant: "destructive", icon: XCircle },
   no_show: { label: "No Show", variant: "destructive", icon: XCircle },
 };
 
@@ -85,14 +81,6 @@ function formatDateRange(start: string, end?: string) {
   return `${startStr} - ${format(e, "MMM d")}`;
 }
 
-function canConfirm(status: string) {
-  return ["registered", "assigned"].includes(status);
-}
-
-function canDecline(status: string) {
-  return !["cancelled", "declined", "attended", "no_show"].includes(status);
-}
-
 /* ---------- Components ---------- */
 
 function SevaCardSkeleton() {
@@ -101,34 +89,14 @@ function SevaCardSkeleton() {
       <Skeleton className="h-5 w-3/4" />
       <Skeleton className="h-4 w-1/2" />
       <Skeleton className="h-4 w-2/3" />
-      <div className="flex gap-2 pt-2">
-        <Skeleton className="h-8 w-28" />
-        <Skeleton className="h-8 w-28" />
-      </div>
     </div>
   );
 }
 
-function SevaCard({
-  registration,
-  onAction,
-}: {
-  registration: Registration;
-  onAction: (id: string, action: "confirm" | "decline") => Promise<void>;
-}) {
-  const [loading, setLoading] = useState<"confirm" | "decline" | null>(null);
+function SevaCard({ registration }: { registration: Registration }) {
   const { eventId: event, serviceId: service, status } = registration;
   const config = statusConfig[status] || statusConfig.registered;
   const StatusIcon = config.icon;
-
-  async function handleAction(action: "confirm" | "decline") {
-    setLoading(action);
-    try {
-      await onAction(registration._id, action);
-    } finally {
-      setLoading(null);
-    }
-  }
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card ring-1 ring-foreground/5">
@@ -214,59 +182,6 @@ function SevaCard({
             </div>
           </div>
         )}
-
-        {/* Action buttons */}
-        {(canConfirm(status) || canDecline(status)) && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {canConfirm(status) && (
-              <Button
-                size="sm"
-                disabled={loading !== null}
-                onClick={() => handleAction("confirm")}
-                className="gap-1.5 bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:text-white dark:hover:bg-green-700"
-              >
-                {loading === "confirm" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle className="h-3.5 w-3.5" />
-                )}
-                Confirm Seva
-              </Button>
-            )}
-            {canDecline(status) && status !== "confirmed" && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loading !== null}
-                onClick={() => handleAction("decline")}
-                className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                {loading === "decline" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <XCircle className="h-3.5 w-3.5" />
-                )}
-                Unable to Serve
-              </Button>
-            )}
-            {canDecline(status) && status === "confirmed" && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loading !== null}
-                onClick={() => handleAction("decline")}
-                className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                {loading === "decline" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <XCircle className="h-3.5 w-3.5" />
-                )}
-                Cancel Seva
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -300,24 +215,6 @@ export default function MySevaTokenPage() {
   useEffect(() => {
     fetchSeva();
   }, [fetchSeva]);
-
-  async function handleAction(registrationId: string, action: "confirm" | "decline") {
-    try {
-      const res = await fetch(
-        `${API_URL}/api/seva/${registrationId}/${action}`,
-        { method: "PUT" }
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || `Failed to ${action}`);
-      }
-      toast.success(action === "confirm" ? "Seva confirmed!" : "Seva declined");
-      await fetchSeva();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : `Failed to ${action}`);
-      throw err;
-    }
-  }
 
   /* Loading state */
   if (loading) {
@@ -398,11 +295,7 @@ export default function MySevaTokenPage() {
       ) : (
         <div className="space-y-3">
           {registrations.map((reg) => (
-            <SevaCard
-              key={reg._id}
-              registration={reg}
-              onAction={handleAction}
-            />
+            <SevaCard key={reg._id} registration={reg} />
           ))}
         </div>
       )}

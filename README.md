@@ -46,7 +46,7 @@ All API endpoints live under `/api/*`. Full reference with curl examples:
 - **`API-DOCS.md`** — markdown
 - **`API-DOCS.html`** — shareable HTML (give this to the mobile team)
 
-Key public endpoints the mobile app uses: `GET /api/events/public`, `POST /api/registrations`, `GET /api/seva/:token`, `POST /api/seva/send-otp`, `POST /api/seva/verify-otp`, `PUT /api/seva/:id/confirm`, `PUT /api/seva/:id/decline`.
+Key public endpoints the mobile app uses: `GET /api/events/public`, `POST /api/registrations`, `GET /api/seva/:token`, `POST /api/seva/send-otp`, `POST /api/seva/verify-otp`. Status changes are admin-only via `PUT /api/registrations/:id/status`.
 
 ## Scripts
 

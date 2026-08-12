@@ -281,7 +281,7 @@ curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64
 ```
 
 **Key points for the app:**
-- `status` is the volunteer's progress for that event: `registered` → `assigned` → `confirmed` → `attended`.
+- `status` is the volunteer's progress for that event: `registered` → `assigned` → `attended`.
 - When the admin assigns work, `serviceId` becomes populated (it's `null`/absent until then). Show the service name to the volunteer.
 - `serviceId.coordinatorId` is the person to contact for that seva.
 
@@ -346,31 +346,9 @@ curl -X POST https://vcc-client.vercel.app/api/seva/verify-otp ^
 
 ---
 
-### Bonus — Confirm / Decline a seva
+### Note — Status changes are admin-only
 
-When the admin assigns work, the volunteer should be able to confirm or decline.
-
-| Method | Endpoint | What it does |
-|--------|----------|--------------|
-| `PUT` | `/api/seva/:registrationId/confirm` | Sets status → `confirmed` |
-| `PUT` | `/api/seva/:registrationId/decline` | Sets status → `cancelled` |
-
-The `:registrationId` is the registration's `_id` (from the "My Seva" response above).
-
-**curl:**
-```
-curl -X PUT https://vcc-client.vercel.app/api/seva/6a796695123edd9fb32a061b/confirm
-```
-
-**Response (200):**
-```json
-{ "message": "Seva confirmed", "registration": { "_id": "...", "status": "confirmed", ... } }
-```
-
-**Business rules to handle in the UI:**
-- Confirm is allowed when status is `assigned` or `registered`.
-- Decline is allowed unless status is `attended`, `no_show`, or `cancelled`.
-- These buttons are usually shown when a `serviceId` is present (work assigned).
+The old `PUT /api/seva/:registrationId/confirm` and `PUT /api/seva/:registrationId/decline` endpoints have been **removed** along with the `confirmed` status. Volunteers can no longer change their own status — the app only *reads* seva data (profile + assignments + status). All status transitions happen in the admin panel via `PUT /api/registrations/:id/status`.
 
 ---
 
@@ -379,23 +357,22 @@ curl -X PUT https://vcc-client.vercel.app/api/seva/6a796695123edd9fb32a061b/conf
 A registration moves forward through these statuses. This is the "journey" of a volunteer:
 
 ```
-registered ──▶ assigned ──▶ confirmed ──▶ attended
-      │           │            │            │
-      │           └──(admin assigns a service)──▶ confirmed
+registered ──▶ assigned ──▶ attended
+      │            │            │
+      │            └──(admin assigns a service)──▶ assigned
       │
-      └──(volunteer declines)──▶ cancelled
+      └──(volunteer backs out)──▶ cancelled
 ```
 
 | Status | Who sets it | Meaning |
 |--------|-------------|---------|
 | `registered` | App / website (automatic) | Volunteer signed up for the event |
 | `assigned` | Admin | Admin put them on a specific service (Parking, etc.) |
-| `confirmed` | Volunteer | Volunteer said "yes, I'll come" |
 | `attended` | Coordinator | Volunteer showed up on the day |
 | `no_show` | Coordinator | They didn't show up |
-| `cancelled` | Volunteer / Admin | They backed out |
+| `cancelled` | Admin | They backed out |
 
-The mobile app only ever *reads* these and lets the volunteer set `confirmed` or `cancelled`. Everything else is admin-side.
+The mobile app only ever *reads* these statuses. All status changes are admin-side via `PUT /api/registrations/:id/status`.
 
 ---
 
@@ -414,8 +391,6 @@ The mobile app only ever *reads* these and lets the volunteer set `confirmed` or
 | `GET` | `/api/seva/:token` | Volunteer's seva (by token) |
 | `POST` | `/api/seva/send-otp` | Send login OTP |
 | `POST` | `/api/seva/verify-otp` | Verify OTP, return seva data |
-| `PUT` | `/api/seva/:registrationId/confirm` | Volunteer confirms seva |
-| `PUT` | `/api/seva/:registrationId/decline` | Volunteer declines seva |
 
 ### Admin (JWT required — used by the web admin panel)
 

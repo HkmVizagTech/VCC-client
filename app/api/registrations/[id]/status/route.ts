@@ -4,9 +4,8 @@ import { Registration } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  registered: ["assigned", "confirmed", "cancelled"],
-  assigned: ["confirmed", "cancelled"],
-  confirmed: ["attended", "no_show", "cancelled"],
+  registered: ["assigned", "cancelled"],
+  assigned: ["attended", "no_show", "cancelled"],
   attended: [],
   no_show: [],
   cancelled: [],

@@ -307,8 +307,8 @@ export default function ReportsPage() {
                       variant={
                         r.status === "attended"
                           ? "default"
-                          : r.status === "confirmed"
-                            ? "secondary"
+                          : r.status === "no_show"
+                            ? "destructive"
                             : "outline"
                       }
                       className="capitalize"

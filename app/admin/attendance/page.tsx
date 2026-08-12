@@ -63,14 +63,12 @@ interface Registration {
 // --- Constants ---
 
 const STATUS_LABELS: Record<string, string> = {
-  confirmed: "Confirmed",
   assigned: "Assigned",
   attended: "Attended",
   no_show: "No Show",
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  confirmed: "default",
   assigned: "secondary",
   attended: "default",
   no_show: "destructive",
@@ -141,7 +139,7 @@ export default function AttendancePage() {
     }
     setLoadingRegistrations(true);
     try {
-      // Fetch confirmed/assigned (pending) and attended/no_show (completed) together
+      // Fetch assigned (pending) and attended/no_show (completed) together
       const params = new URLSearchParams({ limit: "500" });
       const res = await authFetch(
         `/api/registrations/event/${selectedEventId}?${params.toString()}`
@@ -151,7 +149,7 @@ export default function AttendancePage() {
         // Keep only attendance-relevant statuses
         const relevant = (data.registrations || []).filter(
           (r: Registration) =>
-            ["confirmed", "assigned", "attended", "no_show"].includes(r.status)
+            ["assigned", "attended", "no_show"].includes(r.status)
         );
         setRegistrations(relevant);
       } else {
@@ -199,55 +197,6 @@ export default function AttendancePage() {
     }
   };
 
-  const confirmThenTransition = async (
-    registrationId: string,
-    finalStatus: "attended" | "no_show"
-  ) => {
-    setActionId(registrationId);
-    try {
-      // Step 1: assigned -> confirmed
-      const confirmRes = await authFetch(
-        `/api/registrations/${registrationId}/status`,
-        {
-          method: "PUT",
-          body: JSON.stringify({ status: "confirmed" }),
-        }
-      );
-      if (!confirmRes.ok) {
-        const data = await confirmRes.json();
-        toast.error(data.message || "Could not confirm registration");
-        setActionId(null);
-        return;
-      }
-      // Step 2: confirmed -> attended or no_show
-      const finalRes = await authFetch(
-        `/api/registrations/${registrationId}/status`,
-        {
-          method: "PUT",
-          body: JSON.stringify({ status: finalStatus }),
-        }
-      );
-      const data = await finalRes.json();
-      if (finalRes.ok) {
-        toast.success(
-          finalStatus === "attended"
-            ? "Confirmed and checked in"
-            : "Confirmed and marked as no show"
-        );
-        fetchRegistrations();
-      } else {
-        toast.error(
-          data.message || `Confirmed but could not mark ${finalStatus}`
-        );
-        fetchRegistrations();
-      }
-    } catch {
-      toast.error("Could not update status");
-    } finally {
-      setActionId(null);
-    }
-  };
-
   // --- Filtered data ---
 
   const filteredRegistrations = useMemo(() => {
@@ -255,9 +204,7 @@ export default function AttendancePage() {
 
     // Tab filter
     if (activeTab === "pending") {
-      filtered = filtered.filter(
-        (r) => r.status === "confirmed" || r.status === "assigned"
-      );
+      filtered = filtered.filter((r) => r.status === "assigned");
     } else {
       filtered = filtered.filter(
         (r) => r.status === "attended" || r.status === "no_show"
@@ -293,7 +240,6 @@ export default function AttendancePage() {
     const allForEvent = registrations;
     const totalExpected = allForEvent.filter(
       (r) =>
-        r.status === "confirmed" ||
         r.status === "assigned" ||
         r.status === "attended" ||
         r.status === "no_show"
@@ -302,9 +248,7 @@ export default function AttendancePage() {
       (r) => r.status === "attended"
     ).length;
     const noShow = allForEvent.filter((r) => r.status === "no_show").length;
-    const pending = allForEvent.filter(
-      (r) => r.status === "confirmed" || r.status === "assigned"
-    ).length;
+    const pending = allForEvent.filter((r) => r.status === "assigned").length;
     return { totalExpected, checkedIn, noShow, pending };
   }, [registrations]);
 
@@ -483,7 +427,7 @@ export default function AttendancePage() {
           </p>
           <p className="text-sm text-muted-foreground">
             {activeTab === "pending"
-              ? "All volunteers have been checked in or there are no confirmed registrations"
+              ? "All volunteers have been checked in or there are no assigned registrations"
               : "No volunteers have been checked in or marked as no show yet"}
           </p>
         </div>
@@ -536,62 +480,30 @@ export default function AttendancePage() {
                     {activeTab === "pending" && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {reg.status === "confirmed" && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isProcessing}
-                                onClick={() =>
-                                  markAttendance(reg._id, "attended")
-                                }
-                                className="text-green-600 hover:text-green-700"
-                              >
-                                <CheckCircle className="mr-1 h-3.5 w-3.5" />
-                                Check In
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isProcessing}
-                                onClick={() =>
-                                  markAttendance(reg._id, "no_show")
-                                }
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <XCircle className="mr-1 h-3.5 w-3.5" />
-                                No Show
-                              </Button>
-                            </>
-                          )}
-                          {reg.status === "assigned" && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isProcessing}
-                                onClick={() =>
-                                  confirmThenTransition(reg._id, "attended")
-                                }
-                                className="text-green-600 hover:text-green-700"
-                              >
-                                <CheckCircle className="mr-1 h-3.5 w-3.5" />
-                                Confirm & Check In
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isProcessing}
-                                onClick={() =>
-                                  confirmThenTransition(reg._id, "no_show")
-                                }
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <XCircle className="mr-1 h-3.5 w-3.5" />
-                                No Show
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isProcessing}
+                            onClick={() =>
+                              markAttendance(reg._id, "attended")
+                            }
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                            Check In
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isProcessing}
+                            onClick={() =>
+                              markAttendance(reg._id, "no_show")
+                            }
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <XCircle className="mr-1 h-3.5 w-3.5" />
+                            No Show
+                          </Button>
                         </div>
                       </TableCell>
                     )}

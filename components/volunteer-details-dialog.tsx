@@ -60,7 +60,6 @@ interface RegistrationRecord {
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   assigned: "Assigned",
-  confirmed: "Confirmed",
   attended: "Attended",
   no_show: "No Show",
   cancelled: "Cancelled",
@@ -69,7 +68,6 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_VARIANTS: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
   registered: "outline",
   assigned: "secondary",
-  confirmed: "default",
   attended: "default",
   no_show: "destructive",
   cancelled: "secondary",
