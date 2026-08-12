@@ -46,6 +46,7 @@
   <a href="#overview">Overview</a>
   <a href="#register">1. Register a volunteer</a>
   <a href="#myseva">2. My Seva lookup</a>
+  <a href="#timeslots">3. Fetch event time slots</a>
   <a href="#notes">Notes &amp; related calls</a>
 </nav>
 
@@ -201,6 +202,38 @@
   <p>Same data, shareable link: the <code>/my-seva/&lt;phone&gt;</code> web page uses the identical endpoint, so a volunteer can also view their seva in a browser.</p>
 </section>
 
+<section id="timeslots">
+  <h2>Call 3 (supporting) — Fetch event time slots</h2>
+  <p><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/time-slots</span> &nbsp;— availability picker</p>
+  <p>Returns the <b>time slots the admin configured when creating the event</b> (the "Availability Time Slots" in the event setup). The app uses these to render the volunteer's availability picker in the registration form, then sends the chosen slots back in the registration call as <code>serviceAvailability</code>.</p>
+
+  <h3>curl</h3>
+  <pre><code>curl https://vcc-client.vercel.app/api/events/public/SKJ26V/time-slots</code></pre>
+
+  <h3>Response (200)</h3>
+  <pre><code>{
+  "eventId": "SKJ26V",
+  "name": "Sri Krishna Janmashtami 2026",
+  "eventStart": "2026-09-04T04:16:00.000Z",
+  "eventEnd": "2026-09-08T04:16:00.000Z",
+  "timeSlots": ["Morning 8-11 AM", "Evening 5-8 PM"]
+}</code></pre>
+
+  <h3>How to use it in the app</h3>
+  <ul>
+    <li>Render one toggle per entry in <code>timeSlots</code> for <b>each day</b> of the event (days come from <code>eventStart</code>…<code>eventEnd</code>).</li>
+    <li>Send the volunteer's choices back in registration as <code>serviceAvailability</code>: <code>[{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }]</code>.</li>
+    <li>The full event detail endpoint (<code>GET /api/events/public/:eventId</code>) also includes <code>availabilitySlots</code> — the same list — plus <code>customFields</code> and <code>photoRequired</code>, so the registration form can load everything in one call if preferred.</li>
+    <li><code>timeSlots</code> may be empty (<code>[]</code>) when the event has no slots configured — the app can then skip the availability step.</li>
+  </ul>
+
+  <h3>Possible errors</h3>
+  <table>
+    <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
+    <tr><td>404</td><td>Event not found</td><td>Wrong event code / event removed</td></tr>
+  </table>
+</section>
+
 <section id="notes">
   <h2>Notes &amp; related calls</h2>
   <h3>Statuses are read-only for volunteers</h3>
@@ -211,7 +244,6 @@
     <tr><th>Endpoint</th><th>Purpose</th></tr>
     <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public</span></td><td>List events a volunteer can register for</td></tr>
     <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId</span></td><td>Event details + custom fields + slots for the registration form</td></tr>
-    <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/time-slots</span></td><td>The availability slots to send back as <code>serviceAvailability</code></td></tr>
     <tr><td><span class="method">POST</span> <span class="endpoint">/api/upload/photo</span></td><td>Upload the volunteer photo → returns <code>photoKey</code></td></tr>
     <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></td><td>Venue attendance lookup (see CHECK-IN-API)</td></tr>
     <tr><td><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></td><td>Venue attendance confirm (see CHECK-IN-API)</td></tr>

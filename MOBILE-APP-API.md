@@ -169,6 +169,46 @@ curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210
 
 ---
 
+## Call 3 (supporting) — Fetch event time slots (availability picker)
+
+| | |
+|---|---|
+| **Method** | `GET` |
+| **Endpoint** | `/api/events/public/:eventId/time-slots` |
+| **Auth** | None (public) |
+
+Returns the **time slots the admin configured when creating the event** (the "Availability Time Slots" in the event setup). The app uses these to render the volunteer's availability picker in the registration form, then sends the chosen slots back in the registration call as `serviceAvailability`.
+
+**curl:**
+```
+curl https://vcc-client.vercel.app/api/events/public/SKJ26V/time-slots
+```
+
+**Response (200):**
+```json
+{
+  "eventId": "SKJ26V",
+  "name": "Sri Krishna Janmashtami 2026",
+  "eventStart": "2026-09-04T04:16:00.000Z",
+  "eventEnd": "2026-09-08T04:16:00.000Z",
+  "timeSlots": ["Morning 8-11 AM", "Evening 5-8 PM"]
+}
+```
+
+**How to use it in the app:**
+- Render one toggle per entry in `timeSlots` for **each day** of the event (days come from `eventStart`…`eventEnd`).
+- Send the volunteer's choices back in registration as `serviceAvailability`: `[{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }]`.
+- Note: the full event detail endpoint (`GET /api/events/public/:eventId`) also includes `availabilitySlots` — the same list — plus `customFields` and `photoRequired`, so the registration form can load everything in one call if preferred.
+- `timeSlots` may be empty (`[]`) when the event has no slots configured — the app can then skip the availability step.
+
+**Possible errors:**
+
+| Status | Message | App should show |
+|--------|---------|----------------|
+| `404` | `Event not found` | Wrong event code / event removed |
+
+---
+
 ## Note — statuses are read-only for volunteers
 
 Volunteers can never change their own status. The mobile app only **reads** this data — all status changes (assigning a service, marking attendance, canceling) happen in the admin panel.
