@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VCC Mobile API — Register &amp; My Seva (2 core calls)</title>
+<style>
+  :root { --accent:#d97706; --dark:#1c1917; --bg:#faf7f2; --card:#ffffff; --border:#e7e5e4; --code-bg:#292524; --code-fg:#e7e5e4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--dark); line-height: 1.6; }
+  header { background: linear-gradient(135deg, #1c1917, #44403c); color: #fff; padding: 40px 20px; text-align: center; }
+  header h1 { font-size: 1.8rem; margin-bottom: 6px; }
+  header p { color: #d6d3d1; font-size: .95rem; }
+  header .badge { display:inline-block; background: var(--accent); color:#fff; border-radius:999px; padding:3px 14px; font-size:.8rem; margin-top:10px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  section { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:22px 24px; margin-bottom:22px; }
+  h2 { font-size: 1.35rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 3px solid var(--accent); color: #292524; }
+  h3 { font-size: 1.05rem; margin: 16px 0 6px; color: #44403c; }
+  p, li { font-size: .95rem; }
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .88rem; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f0e8; }
+  code { font-family: "Cascadia Code", Consolas, Menlo, monospace; font-size: .85em; background: #f5f0e8; padding: 2px 6px; border-radius: 4px; }
+  pre { background: var(--code-bg); color: var(--code-fg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 10px 0; font-size: .85rem; line-height: 1.5; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .method { font-weight: 700; color: var(--accent); }
+  .endpoint { font-family: Consolas, monospace; }
+  .note { background:#fffbeb; border-left:4px solid var(--accent); padding:10px 14px; border-radius:6px; margin:10px 0; font-size:.9rem; }
+  .toc { columns: 2; font-size: .92rem; }
+  .toc a { color: #b45309; text-decoration: none; }
+  footer { text-align: center; color: #a8a29e; font-size: .85rem; padding: 20px; }
+  @media (max-width: 640px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>VCC Mobile API — Register &amp; My Seva</h1>
+  <p>Hare Krishna Movement Visakhapatnam &mdash; the 2 core calls for the volunteer mobile app and harekrishnavizag.org</p>
+  <span class="badge">Public &middot; No login required</span>
+</header>
+
+<main>
+
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#register">1. Register a volunteer</a>
+  <a href="#myseva">2. My Seva lookup</a>
+  <a href="#notes">Notes &amp; related calls</a>
+</nav>
+
+<section id="overview">
+  <h2>Overview</h2>
+  <p>These are the <b>two core calls</b> every volunteer interaction depends on. Both are <b>public</b> (no login, no token) and both are CORS-enabled for <code>https://harekrishnavizag.org</code> and <code>https://www.harekrishnavizag.org</code>.</p>
+  <table>
+    <tr><th>#</th><th>Purpose</th><th>Endpoint</th></tr>
+    <tr><td>1</td><td><b>Register</b> — a volunteer signs up for an event (mobile app <b>or</b> the website)</td><td><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/register</span></td></tr>
+    <tr><td>2</td><td><b>My Seva</b> — a volunteer views their profile and assigned seva by phone</td><td><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></td></tr>
+  </table>
+  <p class="note"><b>The phone number is the volunteer's identity.</b> A volunteer who registers from the mobile app is the <b>same person</b> in the admin panel as one who registered on the website — the phone number matches them up.</p>
+  <h3>Base URL</h3>
+  <table>
+    <tr><th>Environment</th><th>Base URL</th></tr>
+    <tr><td><b>Production</b></td><td><code>https://vcc-client.vercel.app</code></td></tr>
+    <tr><td><b>Local dev</b></td><td><code>http://localhost:3000</code></td></tr>
+  </table>
+</section>
+
+<section id="register">
+  <h2>Call 1 — Register a volunteer for an event</h2>
+  <p><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/register</span></p>
+  <p><code>eventId</code> is the short uppercase event code (e.g. <code>SKJ26V</code>), shown on the events list. The call does three things automatically:</p>
+  <ol>
+    <li>Looks up the volunteer <b>by phone</b>. If they've volunteered before, their existing profile is reused.</li>
+    <li>If they're new, <b>creates their profile</b>.</li>
+    <li>Creates the <b>registration record</b> linking them to the event.</li>
+  </ol>
+
+  <h3>Request body (JSON)</h3>
+  <pre><code>{
+  "name": "Rama Das",
+  "phone": "9876543210",
+  "age": 28,
+  "gender": "male",
+  "locality": "Dwaraka Nagar",
+  "occupation": "Software Engineer",
+  "occupationType": "working",
+  "company": "ACME Ltd",
+  "skills": ["it", "photography"],
+  "photoKey": "volunteers/1725182601234-ab12cd.jpg",
+  "serviceAvailability": [{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }],
+  "customAnswers": [{ "fieldId": "d4e5f6", "value": "Parking" }],
+  "notes": ""
+}</code></pre>
+  <p><b>Required fields:</b> <code>name</code>, <code>phone</code> — everything else is optional.</p>
+
+  <h3>Field rules</h3>
+  <table>
+    <tr><th>Field</th><th>Rules</th></tr>
+    <tr><td><code>phone</code></td><td>Any Indian number. Non-digits are stripped and only the <b>last 10 digits</b> are kept. Invalid → <code>400 "Phone number must be exactly 10 digits"</code>.</td></tr>
+    <tr><td><code>gender</code></td><td><code>male</code> | <code>female</code> | <code>other</code></td></tr>
+    <tr><td><code>occupationType</code></td><td><code>student</code> | <code>working</code> (use <code>institution</code> for students, <code>company</code> for working)</td></tr>
+    <tr><td><code>skills</code></td><td><code>medical</code>, <code>photography</code>, <code>videography</code>, <code>driving</code>, <code>electrical</code>, <code>sound</code>, <code>it</code>, <code>graphic_design</code>, <code>cooking</code>, <code>crowd_management</code>, <code>other</code></td></tr>
+    <tr><td><code>photoKey</code></td><td>Returned by <code>POST /api/upload/photo</code> (upload first, then pass the key). Required only when the event has <code>photoRequired: true</code>.</td></tr>
+    <tr><td><code>serviceAvailability</code></td><td>Array of <code>{ date, timeSlot }</code> matching the event's slots (from <code>GET /api/events/public/:eventId/time-slots</code>).</td></tr>
+    <tr><td><code>customAnswers</code></td><td>Array of <code>{ fieldId, value }</code> (an object map like <code>{ "d4e5f6": "Parking" }</code> also works). Required/important custom fields are enforced server-side. Checkbox and <code>devotee_select</code> accept arrays of values.</td></tr>
+  </table>
+
+  <h3>curl (Windows cmd)</h3>
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
+  -H "Content-Type: application/json" ^
+  -d "{\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"</code></pre>
+  <p class="note">Tip: put the JSON in a file (<code>body.json</code>) and use <code>-d "@body.json"</code> to avoid quote-escaping pain on Windows.</p>
+
+  <h3>Response (201 — created)</h3>
+  <pre><code>{
+  "message": "Registration successful",
+  "registration": {
+    "_id": "6a796695123edd9fb32a061b",
+    "eventId": "6a7717364ae497f56781ce9b",
+    "volunteerId": "6a796695123edd9fb32a061a",
+    "status": "registered",
+    "serviceAvailability": [],
+    "customAnswers": []
+  },
+  "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
+    "name": "Rama Das",
+    "phone": "9876543210",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
+  }
+}</code></pre>
+
+  <h3>Possible errors</h3>
+  <table>
+    <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
+    <tr><td>400</td><td>Name is required</td><td>Fix the name field</td></tr>
+    <tr><td>400</td><td>Phone number must be exactly 10 digits</td><td>Fix phone input</td></tr>
+    <tr><td>400</td><td>Registration is not open for this event</td><td>"Registrations closed for this event"</td></tr>
+    <tr><td>400</td><td>Registration deadline has passed</td><td>"Registration is over"</td></tr>
+    <tr><td>400</td><td>"&lt;label&gt;" is required</td><td>Fill in the highlighted custom field</td></tr>
+    <tr><td>400</td><td>"&lt;label&gt;" must be a number / has an invalid option / must be a valid date</td><td>Fix the highlighted field</td></tr>
+    <tr><td>404</td><td>Event not found</td><td>Wrong event code / event removed</td></tr>
+    <tr><td>409</td><td>Already registered for this event</td><td>"You're already registered" (safe to show as a success state)</td></tr>
+  </table>
+  <p class="note"><b>Alternative:</b> <code>POST /api/registrations</code> does the same thing but takes the Mongo <code>_id</code> as <code>eventId</code> in the body. Prefer the <code>.../register</code> URL form — it uses the stable, human-readable event code.</p>
+</section>
+
+<section id="myseva">
+  <h2>Call 2 — My Seva (profile + assignments by phone)</h2>
+  <p><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></p>
+  <p>Given the volunteer's registered phone number, returns their profile plus <b>all their registrations</b> with event details, assigned service, and the coordinator to contact. Use it for the "My Seva" screen and for the pre-registration check ("does this phone already exist?").</p>
+
+  <h3>curl</h3>
+  <pre><code>curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210</code></pre>
+
+  <h3>Response (200)</h3>
+  <pre><code>{
+  "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
+    "name": "Rama Das",
+    "phone": "9876543210",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
+  },
+  "registrations": [
+    {
+      "_id": "6a796695123edd9fb32a061b",
+      "status": "assigned",
+      "eventId": {
+        "_id": "6a7717364ae497f56781ce9b",
+        "name": "Sri Krishna Janmashtami 2026",
+        "eventId": "SKJ26V",
+        "status": "registration_open",
+        "venue": "Gadiraju convention centre",
+        "eventStart": "2026-09-04T04:16:00.000Z",
+        "eventEnd": "2026-09-08T04:16:00.000Z"
+      },
+      "serviceId": {
+        "_id": "...",
+        "name": "Parking",
+        "description": "...",
+        "coordinatorId": { "_id": "...", "name": "chaitanya", "phone": "..." }
+      }
+    }
+  ]
+}</code></pre>
+
+  <h3>How to use it in the app</h3>
+  <ul>
+    <li><code>status</code> is the volunteer's progress for that event: <code>registered</code> → <code>assigned</code> → <code>attended</code> (also <code>no_show</code> / <code>cancelled</code>).</li>
+    <li>When the admin assigns work, <code>serviceId</code> becomes populated (it's <code>null</code>/absent until then). Show the service name to the volunteer.</li>
+    <li><code>serviceId.coordinatorId</code> is the person to contact for that seva (tap-to-call / WhatsApp).</li>
+    <li><code>photoKey</code> is the volunteer's photo, if uploaded. Display it with <code>GET /api/upload/photo?key=&lt;photoKey&gt;</code> (302 redirect to the image).</li>
+  </ul>
+
+  <h3>Possible errors</h3>
+  <table>
+    <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
+    <tr><td>404</td><td>Volunteer not found</td><td>"No account found with this number" + offer to register</td></tr>
+  </table>
+  <p>Same data, shareable link: the <code>/my-seva/&lt;phone&gt;</code> web page uses the identical endpoint, so a volunteer can also view their seva in a browser.</p>
+</section>
+
+<section id="notes">
+  <h2>Notes &amp; related calls</h2>
+  <h3>Statuses are read-only for volunteers</h3>
+  <p>Volunteers can never change their own status. The mobile app only <b>reads</b> this data — all status changes (assigning a service, marking attendance, canceling) happen in the admin panel.</p>
+
+  <h3>Related calls (same public API family)</h3>
+  <table>
+    <tr><th>Endpoint</th><th>Purpose</th></tr>
+    <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public</span></td><td>List events a volunteer can register for</td></tr>
+    <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId</span></td><td>Event details + custom fields + slots for the registration form</td></tr>
+    <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/time-slots</span></td><td>The availability slots to send back as <code>serviceAvailability</code></td></tr>
+    <tr><td><span class="method">POST</span> <span class="endpoint">/api/upload/photo</span></td><td>Upload the volunteer photo → returns <code>photoKey</code></td></tr>
+    <tr><td><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></td><td>Venue attendance lookup (see CHECK-IN-API)</td></tr>
+    <tr><td><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></td><td>Venue attendance confirm (see CHECK-IN-API)</td></tr>
+  </table>
+</section>
+
+</main>
+<footer>VCC Mobile API &mdash; Register &amp; My Seva &middot; Volunteer Care Cell, Hare Krishna Movement Visakhapatnam</footer>
+</body>
+</html>
