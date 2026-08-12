@@ -16,8 +16,9 @@ async function main() {
     try {
       await db.collection(coll).dropIndex(index);
       console.log(`dropped ${coll}.${index}`);
-    } catch (e: any) {
-      console.log(`SKIP ${coll}.${index}: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.log(`SKIP ${coll}.${index}: ${err.message}`);
     }
   }
   process.exit(0);

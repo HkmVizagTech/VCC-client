@@ -160,19 +160,10 @@ export default async function PublicEventDetailPage({
 
             <div className="mt-8 rounded-lg bg-primary/5 p-5 text-center">
               {registrationOpen ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Registrations are currently open for this event.
-                  </p>
-                  <div className="mt-3">
-                    <Link
-                      href={`/events/${event.eventId}/register`}
-                      className="inline-flex h-11 items-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-                    >
-                      Register as a Volunteer
-                    </Link>
-                  </div>
-                </>
+                <p className="text-sm text-muted-foreground">
+                  Registrations are currently open. Please register through the
+                  Hare Krishna Visakhapatnam mobile app.
+                </p>
               ) : event.status === "registration_closed" ? (
                 <p className="text-sm text-muted-foreground">
                   Registrations for this event have closed.

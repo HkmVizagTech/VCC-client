@@ -30,9 +30,8 @@ No `NEXT_PUBLIC_API_URL` needed — the API runs in the same app.
 |-------|------|-------------|
 | `/` | Public | Landing page |
 | `/events` | Public | Event listing |
-| `/events/[slug]/register` | Public | Volunteer registration |
-| `/my-seva` | Public | Phone + OTP seva lookup |
-| `/my-seva/[token]` | Public | Token-based seva page |
+| `/my-seva` | Public | Seva lookup by phone |
+| `/my-seva/[token]` | Public | Direct seva link (the URL segment is the phone number) |
 | `/admin` | Protected | Dashboard |
 | `/admin/events` | Protected | Event management |
 | `/admin/volunteers` | Protected | Volunteer registry |
@@ -46,7 +45,7 @@ All API endpoints live under `/api/*`. Full reference with curl examples:
 - **`API-DOCS.md`** — markdown
 - **`API-DOCS.html`** — shareable HTML (give this to the mobile team)
 
-Key public endpoints the mobile app uses: `GET /api/events/public`, `POST /api/registrations`, `GET /api/seva/:token`, `POST /api/seva/send-otp`, `POST /api/seva/verify-otp`. Status changes are admin-only via `PUT /api/registrations/:id/status`.
+Key public endpoints the mobile app uses: `GET /api/events/public`, `GET /api/events/public/:eventId` (+ `/time-slots`), `POST /api/events/public/:eventId/register`, `GET /api/volunteers/by-phone/:phone`, `POST /api/upload/photo`. Status changes are admin-only via `PUT /api/registrations/:id/status`. Volunteer registration happens through the mobile app and harekrishnavizag.org — there is no web registration form.
 
 ## Scripts
 

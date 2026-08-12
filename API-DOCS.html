@@ -37,7 +37,7 @@
 <header>
   <h1>VCC API Reference</h1>
   <p>Hare Krishna Movement Visakhapatnam &mdash; Volunteer Mobile App Integration</p>
-  <span class="badge">Version 1.0 &middot; Merged single-app deployment</span>
+  <span class="badge">Version 1.1 &middot; Merged single-app deployment</span>
 </header>
 
 <main>
@@ -48,7 +48,7 @@
   <a href="#lifecycle">3. Status Lifecycle</a>
   <a href="#full">4. Full Endpoint List</a>
   <a href="#errors">5. Error Handling</a>
-  <a href="#links">6. Registration Links</a>
+  <a href="#links">6. How Volunteers Register</a>
   <a href="#limits">7. Known Limitations</a>
 </nav>
 
@@ -60,16 +60,16 @@
   <table>
     <tr><th>Word</th><th>Meaning</th></tr>
     <tr><td><b>Base URL</b></td><td>The server address. Every endpoint starts with it.</td></tr>
-    <tr><td><b>Endpoint</b></td><td>A specific address + action, e.g. <code>POST /api/registrations</code></td></tr>
+    <tr><td><b>Endpoint</b></td><td>A specific address + action, e.g. <code>POST /api/events/public/SKJ26V/register</code></td></tr>
     <tr><td><b>GET</b></td><td>Fetch / read something. No body.</td></tr>
-    <tr><td><b>POST</b></td><td>Create something new.</td></tr>
+    <tr><td><b>POST</b></td><td>Create something new (registration, photo upload).</td></tr>
     <tr><td><b>PUT</b></td><td>Update something.</td></tr>
     <tr><td><b>Request body</b></td><td>The JSON data sent with POST/PUT.</td></tr>
     <tr><td><b>Response</b></td><td>The JSON returned by the server.</td></tr>
     <tr><td><b>JSON</b></td><td>Text data as <code>"key": "value"</code> pairs.</td></tr>
     <tr><td><b>Status code</b></td><td>200 ok &middot; 201 created &middot; 400 bad request &middot; 404 not found &middot; 409 already exists &middot; 500 server error</td></tr>
-    <tr><td><b>Token</b></td><td>Secret string identifying a volunteer (like a password).</td></tr>
-    <tr><td><b>OTP</b></td><td>6-digit One-Time Password for phone login.</td></tr>
+    <tr><td><b>Event ID</b></td><td>Short uppercase code for an event (e.g. <code>SKJ26V</code>) that goes in URLs &mdash; not the DB <code>_id</code>.</td></tr>
+    <tr><td><b>Phone</b></td><td>The volunteer's identity. Always exactly 10 digits.</td></tr>
   </table>
 
   <h3>Base URL</h3>
@@ -97,80 +97,106 @@
 
   <h3>2. Get the list of events</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/events/public</span></p>
-  <p>Returns all events where volunteers can register or that are upcoming/ongoing.</p>
+  <p>Returns events that are <code>registration_open</code>, <code>registration_closed</code>, or <code>ongoing</code>.</p>
   <pre><code>curl https://vcc-client.vercel.app/api/events/public</code></pre>
   <pre><code>{
   "events": [
     {
       "_id": "6a7717364ae497f56781ce9b",
+      "eventId": "SKJ26V",
       "name": "Sri Krishna Janmashtami 2026",
-      "slug": "sri-krishna-janmashtami-2026",
       "venue": "Gadiraju convention centre",
       "registrationEnd": "2026-08-21T04:16:00.000Z",
       "eventStart": "2026-09-04T04:16:00.000Z",
       "eventEnd": "2026-09-08T04:16:00.000Z",
       "status": "registration_open",
+      "photoRequired": false,
       "coordinatorId": { "name": "chaitanya", "email": "..." }
     }
   ]
 }</code></pre>
-  <p>Show events with <code>status: "registration_open"</code> as "Register now". Use <code>_id</code> as <code>eventId</code> in registration.</p>
+  <p>Show events with <code>status: "registration_open"</code> as "Register now". Use <code>eventId</code> (e.g. <code>SKJ26V</code>) in the URLs for steps 3, 4 and 6. If <code>photoRequired</code> is <code>true</code>, require a photo (step 5).</p>
 
-  <h3>3. Register a volunteer</h3>
-  <p><span class="method">POST</span> <span class="endpoint">/api/registrations</span> &nbsp;— <b>most important endpoint</b></p>
-  <p>Automatically: finds the volunteer by phone (reuses existing profile if returning) &rarr; creates new profile with HKV number + seva token if new &rarr; creates the registration.</p>
+  <h3>3. Get event details (registration form)</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId</span></p>
+  <p>Returns the full event, including <code>availabilitySlots</code>, <code>photoRequired</code>, and <code>customFields</code>.</p>
+  <pre><code>curl https://vcc-client.vercel.app/api/events/public/SKJ26V</code></pre>
   <pre><code>{
-  "eventId": "6a7717364ae497f56781ce9b",
+  "event": {
+    "eventId": "SKJ26V",
+    "name": "Sri Krishna Janmashtami 2026",
+    "photoRequired": true,
+    "availabilitySlots": ["Morning 8-11 AM", "Evening 5-8 PM"],
+    "customFields": [
+      { "id": "a1b2c3", "label": "Vehicle number", "type": "short_text", "required": false },
+      { "id": "d4e5f6", "label": "Preferred department", "type": "select", "required": true, "options": ["Parking", "Prasadam", "Security"] }
+    ]
+  }
+}</code></pre>
+  <p>Custom field types: <code>short_text</code>, <code>long_text</code>, <code>number</code>, <code>email</code>, <code>phone</code>, <code>select</code>, <code>radio</code>, <code>checkbox</code>, <code>date</code>, <code>devotee_select</code>. 404 → <code>{ "message": "Event not found" }</code></p>
+
+  <h3>4. Get event time slots</h3>
+  <p><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/time-slots</span></p>
+  <pre><code>curl https://vcc-client.vercel.app/api/events/public/SKJ26V/time-slots</code></pre>
+  <pre><code>{ "eventId": "SKJ26V", "name": "...", "eventStart": "...", "eventEnd": "...", "timeSlots": ["Morning 8-11 AM", "Evening 5-8 PM"] }</code></pre>
+  <p>Send the volunteer's chosen slots back in registration as <code>serviceAvailability</code>: <code>[{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }]</code></p>
+
+  <h3>5. Upload a volunteer photo (optional)</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/upload/photo</span></p>
+  <p>Send <code>multipart/form-data</code> with the JPEG in the field <code>photo</code> (under 1 MB — compress in the app). Returns a <code>key</code> to pass as <code>photoKey</code> in registration. Required only when the event has <code>photoRequired: true</code>.</p>
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/upload/photo ^
+  -F "photo=@C:\photos\rama.jpg"</code></pre>
+  <p>201 → <code>{ "key": "volunteers/1725182601234-ab12cd.jpg" }</code><br>
+  400 → <code>No photo provided</code> or <code>Photo exceeds 1 MB limit after compression</code></p>
+  <p><b>Serving the photo:</b> <code>GET /api/upload/photo?key=volunteers/xxx.jpg</code> → 302 redirect to a pre-signed URL (1 h), cached for a year.</p>
+
+  <h3>6. Register a volunteer</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/register</span> &nbsp;— <b>most important endpoint</b></p>
+  <p>Looks up the volunteer by phone (reuses their profile if they've volunteered before, otherwise creates one), then creates the registration for the event.</p>
+  <pre><code>{
   "name": "Rama Das",
   "phone": "9876543210",
-  "whatsappNumber": "9876543210",
   "age": 28,
   "gender": "male",
   "locality": "Dwaraka Nagar",
   "occupation": "Software Engineer",
-  "skills": ["it", "photography"]
+  "occupationType": "working",
+  "company": "ACME Ltd",
+  "skills": ["it", "photography"],
+  "photoKey": "volunteers/1725182601234-ab12cd.jpg",
+  "serviceAvailability": [{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }],
+  "customAnswers": [{ "fieldId": "d4e5f6", "value": "Parking" }]
 }</code></pre>
-  <p><b>Required:</b> <code>eventId</code>, <code>name</code>, <code>phone</code>. All else optional. Skills: <code>medical, photography, videography, driving, electrical, sound, it, graphic_design, cooking, crowd_management, other</code>.</p>
-  <pre><code>curl -X POST https://vcc-client.vercel.app/api/registrations ^
+  <p><b>Required:</b> <code>name</code>, <code>phone</code>. Phone is normalized to the last 10 digits. Skills: <code>medical</code>, <code>photography</code>, <code>videography</code>, <code>driving</code>, <code>electrical</code>, <code>sound</code>, <code>it</code>, <code>graphic_design</code>, <code>cooking</code>, <code>crowd_management</code>, <code>other</code>. <code>customAnswers</code> can be an array of <code>{fieldId, value}</code> or an object map; required custom fields are enforced server-side.</p>
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
   -H "Content-Type: application/json" ^
-  -d "{\"eventId\":\"6a7717364ae497f56781ce9b\",\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"</code></pre>
-  <div class="note">Tip: on Windows, put the JSON in a file <code>body.json</code> and use <code>-d "@body.json"</code> instead of escaping quotes.</div>
-  <p><b>Response 201:</b></p>
+  -d "{\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"</code></pre>
   <pre><code>{
   "message": "Registration successful",
-  "registration": { "eventId": "...", "volunteerId": "...", "status": "registered", "_id": "..." },
-  "volunteer": {
-    "_id": "...",
-    "name": "Rama Das",
-    "volunteerNumber": "HKV-00007",
-    "sevaToken": "79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653"
-  }
+  "registration": { "_id": "...", "eventId": "...", "volunteerId": "...", "status": "registered" },
+  "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/1725182601234-ab12cd.jpg" }
 }</code></pre>
-  <p><b>Save the <code>sevaToken</code></b> — the app can store it to show "My Seva" without OTP.</p>
   <table>
     <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
     <tr><td>400</td><td>Registration is not open for this event</td><td>Event not accepting registrations</td></tr>
     <tr><td>400</td><td>Registration deadline has passed</td><td>Too late</td></tr>
-    <tr><td>404</td><td>Event not found</td><td>Wrong eventId</td></tr>
+    <tr><td>400</td><td>Phone number must be exactly 10 digits</td><td>Fix phone input</td></tr>
+    <tr><td>404</td><td>Event not found</td><td>Wrong event code</td></tr>
     <tr><td>409</td><td>Already registered for this event</td><td>"You're already registered"</td></tr>
   </table>
+  <p class="note"><b>Alternative:</b> <code>POST /api/registrations</code> does the same but takes the Mongo <code>_id</code> as <code>eventId</code> in the body. Prefer the URL form above.</p>
 
-  <h3>4. Look up a volunteer by phone (optional)</h3>
+  <h3>7. Show a volunteer's seva ("My Seva")</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></p>
+  <p>Returns the volunteer's profile + all registrations with event, assigned service, and coordinator contact. Use it for both the pre-registration check and the "My Seva" screen.</p>
   <pre><code>curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210</code></pre>
-  <p>200 → <code>{ "volunteer": { ... } }</code> &nbsp;&middot;&nbsp; 404 → <code>{ "message": "Volunteer not found" }</code></p>
-
-  <h3>5. Show assigned work ("My Seva")</h3>
-  <p><span class="method">GET</span> <span class="endpoint">/api/seva/:token</span></p>
-  <p>Returns the volunteer's profile + all registrations with event, assigned service, and coordinator contact.</p>
-  <pre><code>curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653</code></pre>
   <pre><code>{
-  "volunteer": { "name": "Rama Das", "volunteerNumber": "HKV-00007", "phone": "9876543210" },
+  "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/1725182601234-ab12cd.jpg" },
   "registrations": [
     {
-      "_id": "6a796695123edd9fb32a061b",
-      "status": "registered",
-      "eventId": { "name": "Sri Krishna Janmashtami 2026", "venue": "...", "status": "registration_open" },
+      "_id": "...",
+      "status": "assigned",
+      "eventId": { "name": "Sri Krishna Janmashtami 2026", "eventId": "SKJ26V", "venue": "...", "status": "registration_open" },
       "serviceId": {
         "name": "Parking",
         "coordinatorId": { "name": "chaitanya", "phone": "..." }
@@ -178,24 +204,10 @@
     }
   ]
 }</code></pre>
-  <p>When admin assigns work, <code>serviceId</code> becomes populated. 404 → <code>{ "message": "Invalid seva token" }</code></p>
-
-  <h3>6. Send login OTP</h3>
-  <p><span class="method">POST</span> <span class="endpoint">/api/seva/send-otp</span></p>
-  <pre><code>{ "phone": "9876543210" }</code></pre>
-  <pre><code>curl -X POST https://vcc-client.vercel.app/api/seva/send-otp ^
-  -H "Content-Type: application/json" ^
-  -d "{\"phone\":\"9876543210\"}"</code></pre>
-  <p>200 → <code>{ "message": "OTP sent successfully" }</code><br>
-  404 → no volunteer with this phone &nbsp;&middot;&nbsp; 429 → wait 60 seconds</p>
-
-  <h3>7. Verify OTP → get seva data</h3>
-  <p><span class="method">POST</span> <span class="endpoint">/api/seva/verify-otp</span></p>
-  <pre><code>{ "phone": "9876543210", "otp": "123456" }</code></pre>
-  <p>200 → same shape as #5. 400 → <code>{ "message": "Invalid or expired OTP" }</code> (10-min expiry, one-time use).</p>
+  <p>When admin assigns work, <code>serviceId</code> becomes populated. <code>photoKey</code> (if present) lets the app show the volunteer's photo via <code>GET /api/upload/photo?key=</code>. 404 → <code>{ "message": "Volunteer not found" }</code></p>
 
   <h3>Note — Status changes are admin-only</h3>
-  <p>The old <code>PUT /api/seva/:registrationId/confirm</code> and <code>PUT /api/seva/:registrationId/decline</code> endpoints were <strong>removed</strong> along with the <code>confirmed</code> status. Volunteers can no longer change their own status — the app only reads seva data. All status transitions happen in the admin panel via <code>PUT /api/registrations/:id/status</code>.</p>
+  <p>Volunteers can never change their own status — the app only reads seva data. All status transitions happen in the admin panel via <code>PUT /api/registrations/:id/status</code>.</p>
 </section>
 
 <section id="lifecycle">
@@ -221,13 +233,15 @@
     <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
     <tr><td>GET</td><td>/api/health</td><td>Health check</td></tr>
     <tr><td>GET</td><td>/api/events/public</td><td>List open/upcoming events</td></tr>
-    <tr><td>GET</td><td>/api/events/public/:slug</td><td>Event by slug</td></tr>
-    <tr><td>POST</td><td>/api/registrations</td><td>Register volunteer</td></tr>
-    <tr><td>GET</td><td>/api/volunteers/by-phone/:phone</td><td>Find by phone</td></tr>
-    <tr><td>GET</td><td>/api/volunteers/by-token/:token</td><td>Find by token</td></tr>
-    <tr><td>GET</td><td>/api/seva/:token</td><td>Volunteer's seva</td></tr>
-    <tr><td>POST</td><td>/api/seva/send-otp</td><td>Send OTP</td></tr>
-    <tr><td>POST</td><td>/api/seva/verify-otp</td><td>Verify OTP</td></tr>
+    <tr><td>GET</td><td>/api/events/public/:eventId</td><td>Event by event code</td></tr>
+    <tr><td>GET</td><td>/api/events/public/:eventId/time-slots</td><td>Event's availability slots</td></tr>
+    <tr><td>POST</td><td>/api/events/public/:eventId/register</td><td>Register volunteer for an event</td></tr>
+    <tr><td>POST</td><td>/api/registrations</td><td>Register (event _id in body)</td></tr>
+    <tr><td>GET</td><td>/api/volunteers/by-phone/:phone</td><td>Volunteer + seva assignments</td></tr>
+    <tr><td>GET</td><td>/api/seva/:phone</td><td>Same as by-phone (My Seva page)</td></tr>
+    <tr><td>POST</td><td>/api/upload/photo</td><td>Upload volunteer photo → key</td></tr>
+    <tr><td>GET</td><td>/api/upload/photo?key=</td><td>302 redirect to photo URL</td></tr>
+    <tr><td>GET</td><td>/api/devotees</td><td>List devotees</td></tr>
   </table>
   <h3>Admin (JWT required — web panel)</h3>
   <table>
@@ -245,6 +259,7 @@
     <tr><td>PUT</td><td>/api/registrations/:id/status</td><td>Change status</td></tr>
     <tr><td>PUT</td><td>/api/registrations/:id/service</td><td>Assign to service</td></tr>
     <tr><td>PUT</td><td>/api/registrations/bulk-assign</td><td>Bulk assign</td></tr>
+    <tr><td>POST</td><td>/api/devotees</td><td>Create devotee</td></tr>
     <tr><td>GET</td><td>/api/stats/dashboard</td><td>Dashboard stats</td></tr>
     <tr><td>GET</td><td>/api/stats/report</td><td>CSV export data</td></tr>
   </table>
@@ -255,33 +270,31 @@
   <p>Errors always look like <code>{ "message": "explanation" }</code> with an HTTP status code.</p>
   <table>
     <tr><th>Status</th><th>When</th><th>App behaviour</th></tr>
-    <tr><td>400</td><td>Bad input / invalid OTP / wrong state</td><td>Show the message</td></tr>
+    <tr><td>400</td><td>Bad input / wrong state</td><td>Show the message</td></tr>
     <tr><td>401</td><td>Missing/invalid token (admin)</td><td>Go to login</td></tr>
     <tr><td>403</td><td>Not enough permission</td><td>"Not allowed"</td></tr>
     <tr><td>404</td><td>Not found</td><td>Friendly not-found</td></tr>
     <tr><td>409</td><td>Already exists</td><td>"Already registered"</td></tr>
-    <tr><td>429</td><td>Rate limited (OTP)</td><td>Wait 60 seconds</td></tr>
     <tr><td>500</td><td>Server/database error</td><td>Error screen + retry</td></tr>
   </table>
 </section>
 
 <section id="links">
-  <h2>Part 6 — Registration Links (website)</h2>
+  <h2>Part 6 — How Volunteers Register</h2>
+  <p>Volunteers register through the <b>Hare Krishna Visakhapatnam mobile app</b> (and the harekrishnavizag.org website). Both post to the same <code>POST /api/events/public/:eventId/register</code> endpoint, so a volunteer who registers from the app is the <b>same person</b> in the admin panel as one who registered on the website — the phone number is their identity.</p>
   <ul>
-    <li>Events list: <code>https://vcc-client.vercel.app/events</code></li>
-    <li>Register for Janmashtami (currently open): <code>https://vcc-client.vercel.app/events/sri-krishna-janmashtami-2026/register</code></li>
-    <li>My Seva (phone + OTP): <code>https://vcc-client.vercel.app/my-seva</code></li>
+    <li>Events list (public site): <code>https://vcc-client.vercel.app/events</code></li>
+    <li>My Seva (by phone): <code>https://vcc-client.vercel.app/my-seva</code></li>
   </ul>
-  <p>Mobile and website registrations go into the <b>same database</b> — same volunteer appears in admin either way.</p>
 </section>
 
 <section id="limits">
   <h2>Part 7 — Known Limitations</h2>
   <table>
     <tr><th>Item</th><th>Status</th></tr>
-    <tr><td>OTP delivery (SMS/WhatsApp)</td><td><b>Pending</b> — OTP is logged to server console only. Do not ship SMS in production until wired.</td></tr>
-    <tr><td>Rate limiting on registration</td><td>OTP has 60-sec limit; registration not yet rate-limited.</td></tr>
+    <tr><td>Rate limiting on registration</td><td>Registration endpoint not yet rate-limited.</td></tr>
     <tr><td>Admin JWT for mobile</td><td>Not needed — mobile uses public endpoints only.</td></tr>
+    <tr><td>Photo serving</td><td>Pre-signed URLs expire after 1 h; images cached for a year (same key keeps working).</td></tr>
   </table>
 </section>
 

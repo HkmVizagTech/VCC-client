@@ -33,6 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       volunteer: {
         name: volunteer.name,
         phone: volunteer.phone,
+        photoKey: volunteer.photoKey,
       },
       registrations,
     });

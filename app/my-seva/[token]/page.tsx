@@ -53,6 +53,7 @@ interface Volunteer {
   name: string;
   volunteerNumber?: string;
   phone?: string;
+  photoKey?: string;
 }
 
 interface SevaData {
@@ -257,9 +258,17 @@ export default function MySevaTokenPage() {
       {/* Volunteer info */}
       <div className="rounded-xl border bg-primary/5 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-            <User className="h-5 w-5 text-primary" />
-          </div>
+          {volunteer.photoKey ? (
+            <img
+              src={`/api/upload/photo?key=${encodeURIComponent(volunteer.photoKey)}`}
+              alt={volunteer.name}
+              className="h-12 w-12 rounded-full object-cover ring-2 ring-primary/20"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+          )}
           <div>
             <h2 className="font-semibold">{volunteer.name}</h2>
             {volunteer.volunteerNumber && (

@@ -110,6 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             _id: volunteer._id,
             name: volunteer.name,
             phone: volunteer.phone,
+            photoKey: volunteer.photoKey,
           },
         },
         { status: 409 }
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           _id: volunteer._id,
           name: volunteer.name,
           phone: volunteer.phone,
+          photoKey: volunteer.photoKey,
         },
       },
       { status: 201 }

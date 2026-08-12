@@ -2,7 +2,7 @@
 
 **System:** Volunteer Care Cell (VCC) — Hare Krishna Movement Visakhapatnam
 **Audience:** Mobile app developers, testers, and anyone integrating with the VCC backend.
-**Version:** 1.0 (merged single-app deployment)
+**Version:** 1.1 (merged single-app deployment)
 
 > If you're reading this to learn what an API is, start at [Part 1 — The Basics](#part-1--the-basics). If you're a developer integrating the app, jump to [Part 2 — Mobile Endpoints](#part-2--mobile-endpoints-the-7-calls-your-app-needs).
 
@@ -22,16 +22,16 @@ An API is a set of **addresses on a server** that your app can send requests to 
 | Word | Meaning |
 |------|---------|
 | **Base URL** | The address of the server. Every endpoint below starts with this. |
-| **Endpoint** | A specific address + action. Example: `POST /api/registrations` |
+| **Endpoint** | A specific address + action. Example: `POST /api/events/public/SKJ26V/register` |
 | **GET** | "Fetch / read something." No data sent in the body. |
-| **POST** | "Create something new" (e.g. a registration). |
+| **POST** | "Create something new" (e.g. a registration, or an uploaded photo). |
 | **PUT** | "Update something" (e.g. change a status). |
 | **Request body** | The JSON data your app sends along with POST/PUT. |
 | **Response** | The JSON the server sends back. |
 | **JSON** | The data format — text structured as `"key": "value"` pairs. |
 | **HTTP status code** | A number that tells you the result. `200` = ok, `201` = created, `400` = bad request, `404` = not found, `409` = already exists, `500` = server error. |
-| **Token** | A secret string of letters/numbers that identifies a volunteer. Like a password. |
-| **OTP** | One-Time Password — the 6-digit code used to log a volunteer in by phone. |
+| **Event ID** | A short uppercase code for an event (e.g. `SKJ26V`), set by the admin. This is what goes in the URL, **not** the database `_id`. |
+| **Phone** | The volunteer's identity. Always stored as exactly **10 digits** (see Part 2, Step 6). |
 
 ### Base URL
 
@@ -99,7 +99,7 @@ Use this in the app's "loading" screen or as a connectivity check.
 |--------|----------|
 | `GET` | `/api/events/public` |
 
-Returns all events where volunteers can register or that are upcoming/ongoing.
+Returns events that are `registration_open`, `registration_closed`, or `ongoing` — the events a volunteer could register for or attend.
 
 **curl:**
 ```
@@ -112,8 +112,8 @@ curl https://vcc-client.vercel.app/api/events/public
   "events": [
     {
       "_id": "6a7717364ae497f56781ce9b",
+      "eventId": "SKJ26V",
       "name": "Sri Krishna Janmashtami 2026",
-      "slug": "sri-krishna-janmashtami-2026",
       "description": "mega event",
       "venue": "Gadiraju convention centre",
       "registrationStart": "2026-08-01T05:30:00.000Z",
@@ -121,6 +121,7 @@ curl https://vcc-client.vercel.app/api/events/public
       "eventStart": "2026-09-04T04:16:00.000Z",
       "eventEnd": "2026-09-08T04:16:00.000Z",
       "status": "registration_open",
+      "photoRequired": false,
       "coordinatorId": { "_id": "...", "name": "chaitanya", "email": "..." }
     }
   ]
@@ -129,53 +130,171 @@ curl https://vcc-client.vercel.app/api/events/public
 
 **Notes for the app:**
 - Show events where `status` is `registration_open` as "Register now".
-- The `_id` of an event is what you send in the registration call (Step 3).
-- The `slug` is the URL-friendly name (used for the web link).
+- **`eventId`** (e.g. `SKJ26V`) is the human-readable code you use in the URLs for Step 3, 4 and 6.
+- `photoRequired: true` means the registration form should require a photo (see Step 5).
 
 ---
 
-### 3. Register a volunteer (mobile registration)
+### 3. Get event details (registration form)
 
 | Method | Endpoint |
 |--------|----------|
-| `POST` | `/api/registrations` |
+| `GET` | `/api/events/public/:eventId` |
 
-This is the **most important endpoint**. It does three things automatically:
+Returns the full event, including `availabilitySlots`, `photoRequired`, and `customFields` — everything the registration screen needs to render.
 
-1. Looks up the volunteer **by phone number**. If they've volunteered before, their existing profile is reused (same HKV number, same seva token).
-2. If they're new, it creates their profile with a unique **HKV-XXXXX number** and a **seva token**.
-3. Creates the registration record linking them to the event.
+**curl:**
+```
+curl https://vcc-client.vercel.app/api/events/public/SKJ26V
+```
 
-> Because phone number is the volunteer's identity, a returning volunteer registered from the mobile app OR the website is the *same person* in the admin panel.
+**Response (200):** the full event document. The interesting extra fields are:
+
+```json
+{
+  "event": {
+    "_id": "6a7717364ae497f56781ce9b",
+    "eventId": "SKJ26V",
+    "name": "Sri Krishna Janmashtami 2026",
+    "photoRequired": true,
+    "availabilitySlots": ["Morning 8-11 AM", "Evening 5-8 PM"],
+    "customFields": [
+      {
+        "id": "a1b2c3",
+        "label": "Vehicle number",
+        "type": "short_text",
+        "required": false,
+        "options": []
+      },
+      {
+        "id": "d4e5f6",
+        "label": "Preferred department",
+        "type": "select",
+        "required": true,
+        "options": ["Parking", "Prasadam", "Security"]
+      }
+    ]
+  }
+}
+```
+
+**Custom field types:** `short_text`, `long_text`, `number`, `email`, `phone`, `select`, `radio`, `checkbox`, `date`, `devotee_select`.
+
+**Response (404):** `{ "message": "Event not found" }` (wrong event code)
+
+---
+
+### 4. Get event time slots (availability picker)
+
+| Method | Endpoint |
+|--------|----------|
+| `GET` | `/api/events/public/:eventId/time-slots` |
+
+A lightweight version of Step 3 that returns just the slots a volunteer can say they're free for.
+
+**curl:**
+```
+curl https://vcc-client.vercel.app/api/events/public/SKJ26V/time-slots
+```
+
+**Response (200):**
+```json
+{
+  "eventId": "SKJ26V",
+  "name": "Sri Krishna Janmashtami 2026",
+  "eventStart": "2026-09-04T04:16:00.000Z",
+  "eventEnd": "2026-09-08T04:16:00.000Z",
+  "timeSlots": ["Morning 8-11 AM", "Evening 5-8 PM"]
+}
+```
+
+Send the volunteer's chosen slots back in the registration call as `serviceAvailability` (Step 6): `[{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }]`.
+
+---
+
+### 5. Upload a volunteer photo (optional)
+
+| Method | Endpoint |
+|--------|----------|
+| `POST` | `/api/upload/photo` |
+
+Uploads a photo to object storage and returns a **`key`** that you store on the volunteer. Do this **before** registering, then pass `photoKey` in the registration body. Required only when the event has `photoRequired: true`.
+
+Send a `multipart/form-data` request with the file in a field named **`photo`**. The photo must be a JPEG under 1 MB (compress/resize in the app first).
+
+**curl:**
+```
+curl -X POST https://vcc-client.vercel.app/api/upload/photo ^
+  -F "photo=@C:\photos\rama.jpg"
+```
+
+**Response (201):**
+```json
+{ "key": "volunteers/1725182601234-ab12cd.jpg" }
+```
+
+**Possible errors:**
+
+| Status | Message | Meaning |
+|--------|---------|---------|
+| `400` | `No photo provided` | Missing `photo` form field |
+| `400` | `Photo exceeds 1 MB limit after compression` | File too big |
+
+**Serving the photo back:** `GET /api/upload/photo?key=volunteers/1725182601234-ab12cd.jpg` responds with a `302` redirect to a pre-signed URL valid for 1 hour. Images are cached for a year, so the same key keeps working.
+
+---
+
+### 6. Register a volunteer (the most important call)
+
+| Method | Endpoint |
+|--------|----------|
+| `POST` | `/api/events/public/:eventId/register` |
+
+Registers a volunteer for a specific event (the event code goes in the URL). It does three things automatically:
+
+1. **Looks up the volunteer by phone number.** If they've volunteered before, their existing profile is reused — same person in the admin panel.
+2. If they're new, **creates their profile**.
+3. Creates the **registration record** linking them to the event.
+
+> Because phone number is the volunteer's identity, a returning volunteer who registers from the mobile app OR the website is the *same person* in the admin panel.
 
 **Request body (JSON):**
 ```json
 {
-  "eventId": "6a7717364ae497f56781ce9b",
   "name": "Rama Das",
   "phone": "9876543210",
-  "whatsappNumber": "9876543210",
   "age": 28,
   "gender": "male",
   "locality": "Dwaraka Nagar",
   "occupation": "Software Engineer",
-  "skills": ["it", "photography"]
+  "occupationType": "working",
+  "company": "ACME Ltd",
+  "skills": ["it", "photography"],
+  "photoKey": "volunteers/1725182601234-ab12cd.jpg",
+  "serviceAvailability": [{ "date": "2026-09-04", "timeSlot": "Morning 8-11 AM" }],
+  "customAnswers": [{ "fieldId": "d4e5f6", "value": "Parking" }],
+  "notes": ""
 }
 ```
 
-**Required fields:** `eventId`, `name`, `phone`
-**Optional fields:** everything else. `skills` accepts: `medical`, `photography`, `videography`, `driving`, `electrical`, `sound`, `it`, `graphic_design`, `cooking`, `crowd_management`, `other`.
+**Required fields:** `name`, `phone`
+**Optional fields:** everything else.
+
+- `phone` — any Indian number. Non-digits are stripped and only the last **10 digits** are kept. Invalid → `400 "Phone number must be exactly 10 digits"`.
+- `skills` accepts: `medical`, `photography`, `videography`, `driving`, `electrical`, `sound`, `it`, `graphic_design`, `cooking`, `crowd_management`, `other`.
+- `customAnswers` — the event's custom fields. Send as an array of `{ fieldId, value }` (or as an object map `{ "d4e5f6": "Parking" }`). If an event defines a custom field marked required/important, the server rejects the registration without it. Checkboxes and `devotee_select` accept arrays of values.
+- `serviceAvailability` — array of `{ date, timeSlot }` pairs matching the event's `availabilitySlots`.
 
 **curl (Windows cmd):**
 ```
-curl -X POST https://vcc-client.vercel.app/api/registrations ^
+curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
   -H "Content-Type: application/json" ^
-  -d "{\"eventId\":\"6a7717364ae497f56781ce9b\",\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"
+  -d "{\"name\":\"Rama Das\",\"phone\":\"9876543210\"}"
 ```
 
 > Tip: on Windows, escaping quotes is painful. Put the JSON in a file (`body.json`) and use:
 > ```
-> curl -X POST https://vcc-client.vercel.app/api/registrations -H "Content-Type: application/json" -d "@body.json"
+> curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register -H "Content-Type: application/json" -d "@body.json"
 > ```
 
 **Response (201 — created):**
@@ -183,23 +302,21 @@ curl -X POST https://vcc-client.vercel.app/api/registrations ^
 {
   "message": "Registration successful",
   "registration": {
+    "_id": "6a796695123edd9fb32a061b",
     "eventId": "6a7717364ae497f56781ce9b",
     "volunteerId": "6a796695123edd9fb32a061a",
     "status": "registered",
-    "_id": "6a796695123edd9fb32a061b"
+    "serviceAvailability": [],
+    "customAnswers": []
   },
   "volunteer": {
     "_id": "6a796695123edd9fb32a061a",
     "name": "Rama Das",
-    "volunteerNumber": "HKV-00007",
-    "sevaToken": "79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653"
+    "phone": "9876543210",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
   }
 }
 ```
-
-**Key points for the app:**
-- Save the `sevaToken` returned — the app can store it and use it later to show "My Seva" without OTP.
-- The `volunteerNumber` (`HKV-00007`) is their permanent ID.
 
 **Possible errors:**
 
@@ -207,18 +324,26 @@ curl -X POST https://vcc-client.vercel.app/api/registrations ^
 |--------|---------|-------------------------------|
 | `400` | `Registration is not open for this event` | Event not accepting registrations yet |
 | `400` | `Registration deadline has passed` | Too late |
-| `404` | `Event not found` | Wrong `eventId` |
+| `404` | `Event not found` | Wrong event code in the URL |
 | `409` | `Already registered for this event` | Volunteer already signed up — show "You're already registered" |
+
+**Alternative endpoint:** `POST /api/registrations` does the same thing, but takes the Mongo `_id` in the body instead of the code in the URL:
+
+```json
+{ "eventId": "6a7717364ae497f56781ce9b", "name": "Rama Das", "phone": "9876543210" }
+```
+
+Prefer the `.../register` URL form — it uses the stable, human-readable event code.
 
 ---
 
-### 4. Look up a volunteer by phone (optional pre-check)
+### 7. Show a volunteer's seva ("My Seva" screen)
 
 | Method | Endpoint |
 |--------|----------|
 | `GET` | `/api/volunteers/by-phone/:phone` |
 
-Lets the app check whether a phone number already belongs to a registered volunteer before filling the whole form.
+Given the volunteer's **phone number**, returns their profile plus **all their registrations** (with event details, assigned service, and coordinator contact). This is the screen that shows "what work I've been assigned". Use it both for the pre-registration check (does this phone already exist?) and for the "My Seva" lookup.
 
 **curl:**
 ```
@@ -227,47 +352,25 @@ curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210
 
 **Response (200):**
 ```json
-{ "volunteer": { "_id": "...", "name": "Rama Das", "volunteerNumber": "HKV-00007", ... } }
-```
-
-**Response (404):**
-```json
-{ "message": "Volunteer not found" }
-```
-
----
-
-### 5. Show a volunteer's assigned work ("My Seva" screen)
-
-| Method | Endpoint |
-|--------|----------|
-| `GET` | `/api/seva/:token` |
-
-Given the volunteer's **seva token**, returns their profile plus **all their registrations** (with event details, assigned service, and coordinator contact). This is the screen that shows "what work I've been assigned".
-
-**curl:**
-```
-curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64302c31fbc089523f503637f28653
-```
-
-**Response (200):**
-```json
 {
   "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
     "name": "Rama Das",
-    "volunteerNumber": "HKV-00007",
-    "phone": "9876543210"
+    "phone": "9876543210",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
   },
   "registrations": [
     {
       "_id": "6a796695123edd9fb32a061b",
-      "status": "registered",
+      "status": "assigned",
       "eventId": {
         "_id": "6a7717364ae497f56781ce9b",
         "name": "Sri Krishna Janmashtami 2026",
-        "slug": "sri-krishna-janmashtami-2026",
+        "eventId": "SKJ26V",
+        "status": "registration_open",
         "venue": "Gadiraju convention centre",
-        "status": "registration_open"
+        "eventStart": "2026-09-04T04:16:00.000Z",
+        "eventEnd": "2026-09-08T04:16:00.000Z"
       },
       "serviceId": {
         "_id": "...",
@@ -284,71 +387,15 @@ curl https://vcc-client.vercel.app/api/seva/79a741cc0505c1bc86bf478ce42788df6b64
 - `status` is the volunteer's progress for that event: `registered` → `assigned` → `attended`.
 - When the admin assigns work, `serviceId` becomes populated (it's `null`/absent until then). Show the service name to the volunteer.
 - `serviceId.coordinatorId` is the person to contact for that seva.
+- `photoKey` is the volunteer's photo, if they uploaded one. Display it with `GET /api/upload/photo?key=<photoKey>` (302 redirect to the image).
 
-**Response (404):** `{ "message": "Invalid seva token" }`
-
----
-
-### 6. Send a login OTP to the volunteer's phone
-
-| Method | Endpoint |
-|--------|----------|
-| `POST` | `/api/seva/send-otp` |
-
-Sends a 6-digit code to the volunteer's phone (for "log in with phone" flows). Currently the OTP is **logged to the server console** — real SMS/WhatsApp delivery is the one pending integration.
-
-**Request body:**
-```json
-{ "phone": "9876543210" }
-```
-
-**curl:**
-```
-curl -X POST https://vcc-client.vercel.app/api/seva/send-otp ^
-  -H "Content-Type: application/json" ^
-  -d "{\"phone\":\"9876543210\"}"
-```
-
-**Response (200):** `{ "message": "OTP sent successfully" }`
-
-**Possible errors:**
-
-| Status | Message | Meaning |
-|--------|---------|---------|
-| `404` | `No volunteer found with this phone number` | This phone isn't registered yet |
-| `429` | `Please wait 60 seconds before requesting another OTP` | Rate limit — 1 OTP per minute |
-
----
-
-### 7. Verify the OTP → get the volunteer's seva data
-
-| Method | Endpoint |
-|--------|----------|
-| `POST` | `/api/seva/verify-otp` |
-
-Checks the OTP, marks it used, and returns the same data as Step 5 (volunteer profile + all assignments). This is how a volunteer "logs in" without a token.
-
-**Request body:**
-```json
-{ "phone": "9876543210", "otp": "123456" }
-```
-
-**curl:**
-```
-curl -X POST https://vcc-client.vercel.app/api/seva/verify-otp ^
-  -H "Content-Type: application/json" ^
-  -d "{\"phone\":\"9876543210\",\"otp\":\"123456\"}"
-```
-
-**Response (200):** identical shape to Step 5 (`volunteer` + `registrations`).
-
-**Errors:** `400` → `{ "message": "Invalid or expired OTP" }` (OTP is valid for 10 minutes and can only be used once).
+**Response (404):** `{ "message": "Volunteer not found" }`
 
 ---
 
 ### Note — Status changes are admin-only
 
-The old `PUT /api/seva/:registrationId/confirm` and `PUT /api/seva/:registrationId/decline` endpoints have been **removed** along with the `confirmed` status. Volunteers can no longer change their own status — the app only *reads* seva data (profile + assignments + status). All status transitions happen in the admin panel via `PUT /api/registrations/:id/status`.
+Volunteers can never change their own status — the app only *reads* seva data (profile + assignments + status). All status transitions (`registered` → `assigned` → `attended` / `no_show`, or `cancelled`) happen in the admin panel.
 
 ---
 
@@ -361,7 +408,7 @@ registered ──▶ assigned ──▶ attended
       │            │            │
       │            └──(admin assigns a service)──▶ assigned
       │
-      └──(volunteer backs out)──▶ cancelled
+      └──(admin cancels)──▶ cancelled
 ```
 
 | Status | Who sets it | Meaning |
@@ -384,13 +431,15 @@ The mobile app only ever *reads* these statuses. All status changes are admin-si
 |--------|----------|---------|
 | `GET` | `/api/health` | Server + DB health check |
 | `GET` | `/api/events/public` | List open/upcoming events |
-| `GET` | `/api/events/public/:slug` | Single event by slug |
-| `POST` | `/api/registrations` | Register a volunteer for an event |
-| `GET` | `/api/volunteers/by-phone/:phone` | Find volunteer by phone |
-| `GET` | `/api/volunteers/by-token/:token` | Find volunteer by seva token |
-| `GET` | `/api/seva/:token` | Volunteer's seva (by token) |
-| `POST` | `/api/seva/send-otp` | Send login OTP |
-| `POST` | `/api/seva/verify-otp` | Verify OTP, return seva data |
+| `GET` | `/api/events/public/:eventId` | Single event by event code |
+| `GET` | `/api/events/public/:eventId/time-slots` | Event's availability slots |
+| `POST` | `/api/events/public/:eventId/register` | Register a volunteer for an event |
+| `POST` | `/api/registrations` | Register (event Mongo `_id` in body) |
+| `GET` | `/api/volunteers/by-phone/:phone` | Volunteer profile + seva assignments |
+| `GET` | `/api/seva/:phone` | Same as by-phone (used by `/my-seva/:phone` page) |
+| `POST` | `/api/upload/photo` | Upload a volunteer photo → `{ key }` |
+| `GET` | `/api/upload/photo?key=` | 302 redirect to the photo URL (1 h signed) |
+| `GET` | `/api/devotees` | List devotees (for `devotee_select` fields) |
 
 ### Admin (JWT required — used by the web admin panel)
 
@@ -403,7 +452,7 @@ The mobile app only ever *reads* these statuses. All status changes are admin-si
 | `PUT/DELETE` | `/api/users/:id` | Update / delete coordinator (Super Admin) |
 | `PUT` | `/api/users/:id/status` | Activate / deactivate coordinator |
 | `GET/POST` | `/api/volunteers` | List (paginated/searchable) / create volunteers |
-| `GET` | `/api/volunteers/search?q=` | Quick search |
+| `GET` | `/api/volunteers/search?q=` | Quick search by name/phone |
 | `GET/PUT` | `/api/volunteers/:id` | Get / update volunteer |
 | `GET/POST` | `/api/events` | List / create events |
 | `GET/PUT` | `/api/events/:id` | Get / update event (changing `eventId` requires Super Admin + admin password) |
@@ -415,9 +464,12 @@ The mobile app only ever *reads* these statuses. All status changes are admin-si
 | `PUT` | `/api/services/:id/coordinator` | Assign coordinator to service |
 | `GET` | `/api/registrations/event/:eventId` | Registrations for an event |
 | `GET` | `/api/registrations/stats` | Registration stats |
+| `GET` | `/api/registrations/volunteer/:volunteerId` | A volunteer's registrations |
 | `PUT` | `/api/registrations/:id/status` | Change a registration's status |
 | `PUT` | `/api/registrations/:id/service` | Assign one volunteer to a service |
 | `PUT` | `/api/registrations/bulk-assign` | Assign many volunteers at once |
+| `POST` | `/api/devotees` | Create a devotee |
+| `PUT/DELETE` | `/api/devotees/:id` | Update / delete devotee |
 | `GET` | `/api/stats/dashboard` | Dashboard numbers & charts |
 | `GET` | `/api/stats/event/:eventId` | Per-event stats |
 | `GET` | `/api/stats/report` | Full data for CSV export |
@@ -434,24 +486,21 @@ All errors come back in the same shape, with an HTTP status code:
 
 | Status | When | App behaviour |
 |--------|------|---------------|
-| `400` | Bad input, invalid OTP, wrong state | Show the `message` to the user |
+| `400` | Bad input, wrong state | Show the `message` to the user |
 | `401` | Missing / invalid token (admin only) | Send user to login |
 | `403` | Logged in but not enough permission | Show "not allowed" |
 | `404` | Not found | Show friendly "not found" message |
 | `409` | Already exists (e.g. duplicate registration) | Show "you're already registered" |
-| `429` | Rate limited (OTP) | Tell user to wait 60 seconds |
 | `500` | Server / database error | Generic error screen + retry |
 
 ---
 
-## Part 6 — Registration link (for the website)
+## Part 6 — How volunteers register
 
-Volunteers can also register on the website — same data, same database, same person appears in admin either way.
+Volunteers register through the **Hare Krishna Visakhapatnam mobile app** (and the harekrishnavizag.org website). Both post to the same registration endpoint (`POST /api/events/public/:eventId/register`), so a volunteer who registers from the app is the *same person* in the admin panel as one who registered on the website — the phone number is their identity.
 
-- **Events list:** `https://vcc-client.vercel.app/events`
-- **Direct registration for the current open event (Janmashtami):**
-  `https://vcc-client.vercel.app/events/sri-krishna-janmashtami-2026/register`
-- **"My Seva" (see assigned work by phone+OTP):** `https://vcc-client.vercel.app/my-seva`
+- **Events list (public site):** `https://vcc-client.vercel.app/events`
+- **"My Seva" (see assigned work by phone):** `https://vcc-client.vercel.app/my-seva`
 
 ---
 
@@ -459,9 +508,9 @@ Volunteers can also register on the website — same data, same database, same p
 
 | Item | Status |
 |------|--------|
-| OTP delivery (SMS / WhatsApp) | **Pending** — OTP is logged to server console only. Mobile team should NOT ship SMS in production until this is wired. |
-| Rate limiting on registration | Basic OTP rate limit exists; registration endpoint not yet rate-limited. |
+| Rate limiting on registration | Registration endpoint not yet rate-limited. |
 | Admin JWT for mobile | Not needed — mobile uses only public endpoints. |
+| Photo serving | Pre-signed URLs expire after 1 hour, but images are cached for a year (same key keeps working). |
 
 ---
 

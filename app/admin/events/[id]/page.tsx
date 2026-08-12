@@ -305,9 +305,9 @@ export default function EventDetailPage() {
     if (!event) return;
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/events/${event.eventId}/register`
+        `${window.location.origin}/events/${event.eventId}`
       );
-      toast.success("Registration link copied");
+      toast.success("Event link copied");
     } catch {
       toast.error("Could not copy link");
     }
@@ -369,7 +369,7 @@ export default function EventDetailPage() {
                   variant="outline"
                   size="sm"
                   onClick={copyRegistrationLink}
-                  title="Copy registration link"
+                  title="Copy event link"
                 >
                   <Copy className="mr-2 h-4 w-4" />
                   Copy Link

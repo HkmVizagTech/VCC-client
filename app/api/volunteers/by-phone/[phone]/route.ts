@@ -34,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         _id: volunteer._id,
         name: volunteer.name,
         phone: volunteer.phone,
+        photoKey: volunteer.photoKey,
       },
       registrations,
     });

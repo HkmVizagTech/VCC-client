@@ -355,9 +355,9 @@ export default function EventsPage() {
   const copyRegistrationLink = async (event: EventItem) => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/events/${event.eventId}/register`
+        `${window.location.origin}/events/${event.eventId}`
       );
-      toast.success("Registration link copied");
+      toast.success("Event link copied");
     } catch {
       toast.error("Could not copy link");
     }
@@ -427,11 +427,7 @@ export default function EventsPage() {
                   {editing && user?.role === "super_admin" && (
                     <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
                       This ID is shared with the mobile app. Changing it means
-                      the public registration link becomes{" "}
-                      <span className="font-mono">
-                        /events/{(form.eventId || "").toUpperCase() || "..."}/register
-                      </span>{" "}
-                      and the mobile app will use the new ID going forward.
+                      the mobile app will use the new ID going forward.
                     </p>
                   )}
                 </div>
@@ -747,7 +743,7 @@ export default function EventsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => copyRegistrationLink(event)}
-                          title="Copy registration link"
+                          title="Copy event link"
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
