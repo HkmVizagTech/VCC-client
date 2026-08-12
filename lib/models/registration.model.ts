@@ -15,6 +15,13 @@ export interface ServiceAvailabilityEntry {
   timeSlot: string;
 }
 
+export interface DayAttendance {
+  date: string;
+  status: "attended" | "no_show";
+  checkedInAt?: Date;
+  source?: "qr" | "admin";
+}
+
 export interface CustomAnswer {
   fieldId: string;
   label: string;
@@ -28,6 +35,8 @@ export interface IRegistration extends Document {
   serviceId?: Types.ObjectId;
   status: RegistrationStatus;
   serviceAvailability?: ServiceAvailabilityEntry[];
+  /** Per-day attendance outcomes — one entry per event day. */
+  dayAttendance?: DayAttendance[];
   customAnswers?: CustomAnswer[];
   notes?: string;
   createdAt: Date;
@@ -53,6 +62,15 @@ const registrationSchema = new Schema<IRegistration>(
         _id: false,
         date: { type: String, default: "" },
         timeSlot: { type: String, required: true },
+      },
+    ],
+    dayAttendance: [
+      {
+        _id: false,
+        date: { type: String, required: true },
+        status: { type: String, enum: ["attended", "no_show"], required: true },
+        checkedInAt: Date,
+        source: { type: String, enum: ["qr", "admin"] },
       },
     ],
     customAnswers: [

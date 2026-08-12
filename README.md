@@ -32,6 +32,7 @@ No `NEXT_PUBLIC_API_URL` needed — the API runs in the same app.
 | `/events` | Public | Event listing |
 | `/my-seva` | Public | Seva lookup by phone |
 | `/my-seva/[token]` | Public | Direct seva link (the URL segment is the phone number) |
+| `/check-in/[eventId]` | Public | Venue QR check-in (enter phone → confirm attendance) |
 | `/admin` | Protected | Dashboard |
 | `/admin/events` | Protected | Event management |
 | `/admin/volunteers` | Protected | Volunteer registry |

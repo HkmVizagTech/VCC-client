@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { format } from "date-fns";
 import { authFetch } from "@/lib/authClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -28,17 +37,24 @@ import {
   Search,
   Clock,
   UserCheck,
-  UserX,
   ClipboardList,
+  QrCode,
+  RotateCcw,
+  CalendarDays,
 } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
+import { CheckInQr } from "@/components/check-in-qr";
+import { eventDayKeys, todayKey } from "@/lib/utils/event-days";
 
 // --- Types ---
 
 interface Event {
   _id: string;
   name: string;
+  eventId: string;
   status: string;
+  eventStart?: string;
+  eventEnd?: string;
 }
 
 interface Service {
@@ -52,33 +68,50 @@ interface Volunteer {
   phone: string;
 }
 
+interface DayEntry {
+  date: string;
+  status: "attended" | "no_show";
+  checkedInAt?: string;
+  source?: string;
+}
+
 interface Registration {
   _id: string;
   status: string;
   volunteerId?: Volunteer;
   serviceId?: { _id: string; name: string } | null;
+  dayAttendance?: DayEntry[];
   createdAt: string;
 }
 
 // --- Constants ---
 
-const STATUS_LABELS: Record<string, string> = {
+const OVERALL_LABELS: Record<string, string> = {
+  registered: "Registered",
   assigned: "Assigned",
   attended: "Attended",
   no_show: "No Show",
+  cancelled: "Cancelled",
 };
 
-const STATUS_STYLES: Record<string, string> = {
+const OVERALL_STYLES: Record<string, string> = {
+  registered: "outline",
   assigned: "secondary",
   attended: "default",
   no_show: "destructive",
+  cancelled: "secondary",
 };
 
-type TabValue = "pending" | "completed";
+const dayLabel = (day: string) =>
+  format(new Date(`${day}T00:00:00`), "EEE, MMM d");
 
 // --- Component ---
 
 export default function AttendancePage() {
+  const { user } = useAuth();
+  const canAssign =
+    user?.role === "super_admin" || user?.role === "event_coordinator";
+
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [services, setServices] = useState<Service[]>([]);
@@ -86,14 +119,15 @@ export default function AttendancePage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabValue>("pending");
+  const [activeDay, setActiveDay] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
 
   // Fetch events on mount
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await authFetch("/api/events?limit=100");
+      const res = await authFetch("/api/stats/events");
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events || []);
@@ -108,6 +142,26 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  const selectedEvent = useMemo(
+    () => events.find((e) => e._id === selectedEventId),
+    [events, selectedEventId]
+  );
+
+  const eventDays = useMemo(
+    () => eventDayKeys(selectedEvent?.eventStart, selectedEvent?.eventEnd),
+    [selectedEvent]
+  );
+
+  // Default the day to today when the event is running, else the first day.
+  useEffect(() => {
+    if (!selectedEventId || eventDays.length === 0) {
+      setActiveDay("");
+      return;
+    }
+    const today = todayKey();
+    setActiveDay(eventDays.includes(today) ? today : eventDays[0]);
+  }, [selectedEventId, eventDays]);
 
   // Fetch services when event changes
   useEffect(() => {
@@ -139,17 +193,16 @@ export default function AttendancePage() {
     }
     setLoadingRegistrations(true);
     try {
-      // Fetch assigned (pending) and attended/no_show (completed) together
       const params = new URLSearchParams({ limit: "500" });
       const res = await authFetch(
         `/api/registrations/event/${selectedEventId}?${params.toString()}`
       );
       if (res.ok) {
         const data = await res.json();
-        // Keep only attendance-relevant statuses
+        // Anyone who registered can check in, so keep every non-cancelled
+        // registration in the attendance pool.
         const relevant = (data.registrations || []).filter(
-          (r: Registration) =>
-            ["assigned", "attended", "no_show"].includes(r.status)
+          (r: Registration) => r.status !== "cancelled"
         );
         setRegistrations(relevant);
       } else {
@@ -168,48 +221,70 @@ export default function AttendancePage() {
 
   // --- Attendance actions ---
 
-  const markAttendance = async (
+  const markDay = async (
     registrationId: string,
-    newStatus: "attended" | "no_show"
+    date: string,
+    status: "attended" | "no_show" | "unmark"
   ) => {
     setActionId(registrationId);
     try {
       const res = await authFetch(
-        `/api/registrations/${registrationId}/status`,
+        `/api/registrations/${registrationId}/attendance`,
         {
           method: "PUT",
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({ date, status }),
         }
       );
       const data = await res.json();
       if (res.ok) {
-        toast.success(
-          newStatus === "attended" ? "Checked in" : "Marked as no show"
-        );
+        const labels: Record<string, string> = {
+          attended: "Checked in",
+          no_show: "Marked as no show",
+          unmark: "Attendance record removed",
+        };
+        toast.success(labels[status]);
         fetchRegistrations();
       } else {
-        toast.error(data.message || "Could not update status");
+        toast.error(data.message || "Could not update attendance");
       }
     } catch {
-      toast.error("Could not update status");
+      toast.error("Could not update attendance");
     } finally {
       setActionId(null);
     }
   };
 
-  // --- Filtered data ---
+  const assignService = async (registrationId: string, serviceId: string) => {
+    try {
+      const res = await authFetch(
+        `/api/registrations/${registrationId}/service`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ serviceId }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Service assigned");
+        fetchRegistrations();
+      } else {
+        toast.error(data.message || "Could not assign service");
+      }
+    } catch {
+      toast.error("Could not assign service");
+    }
+  };
+
+  // --- Derived data ---
+
+  const dayEntryFor = useCallback(
+    (reg: Registration, date: string) =>
+      (reg.dayAttendance || []).find((d) => d.date === date),
+    []
+  );
 
   const filteredRegistrations = useMemo(() => {
     let filtered = registrations;
-
-    // Tab filter
-    if (activeTab === "pending") {
-      filtered = filtered.filter((r) => r.status === "assigned");
-    } else {
-      filtered = filtered.filter(
-        (r) => r.status === "attended" || r.status === "no_show"
-      );
-    }
 
     // Service filter
     if (selectedServiceId) {
@@ -224,33 +299,29 @@ export default function AttendancePage() {
       filtered = filtered.filter((r) => {
         const vol = r.volunteerId;
         return (
-          vol?.name?.toLowerCase().includes(q) ||
-          vol?.phone?.includes(q)
+          vol?.name?.toLowerCase().includes(q) || vol?.phone?.includes(q)
         );
       });
     }
 
     return filtered;
-  }, [registrations, activeTab, selectedServiceId, searchQuery]);
-
-  // --- Summary stats ---
+  }, [registrations, selectedServiceId, searchQuery]);
 
   const stats = useMemo(() => {
-    // Stats are computed across all registrations for the event (not filtered by service/search)
-    const allForEvent = registrations;
-    const totalExpected = allForEvent.filter(
-      (r) =>
-        r.status === "assigned" ||
-        r.status === "attended" ||
-        r.status === "no_show"
+    const total = registrations.length;
+    const checkedIn = registrations.filter(
+      (r) => dayEntryFor(r, activeDay)?.status === "attended"
     ).length;
-    const checkedIn = allForEvent.filter(
-      (r) => r.status === "attended"
+    const noShow = registrations.filter(
+      (r) => dayEntryFor(r, activeDay)?.status === "no_show"
     ).length;
-    const noShow = allForEvent.filter((r) => r.status === "no_show").length;
-    const pending = allForEvent.filter((r) => r.status === "assigned").length;
-    return { totalExpected, checkedIn, noShow, pending };
-  }, [registrations]);
+    return {
+      total,
+      checkedIn,
+      noShow,
+      pending: total - checkedIn - noShow,
+    };
+  }, [registrations, activeDay, dayEntryFor]);
 
   // --- Render ---
 
@@ -261,17 +332,36 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-2xl font-bold">Attendance</h1>
           <p className="text-sm text-muted-foreground">
-            Track volunteer check-ins for events
+            Track volunteer check-ins per day, for each event
           </p>
         </div>
-        <RefreshButton
-          onRefresh={fetchRegistrations}
-          loading={loadingRegistrations}
-          title="Refresh attendance data"
-        />
+        <div className="flex items-center gap-2">
+          {selectedEvent && (
+            <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+              <DialogTrigger render={<Button variant="outline" size="sm" />}>
+                <QrCode className="mr-2 h-4 w-4" />
+                Check-in QR
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Venue Check-in QR</DialogTitle>
+                </DialogHeader>
+                <CheckInQr
+                  eventId={selectedEvent.eventId}
+                  eventName={selectedEvent.name}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
+          <RefreshButton
+            onRefresh={fetchRegistrations}
+            loading={loadingRegistrations}
+            title="Refresh attendance data"
+          />
+        </div>
       </div>
 
-      {/* Event selector */}
+      {/* Event + day selectors */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-72">
           <label className="mb-1.5 block text-sm font-medium">Event</label>
@@ -297,6 +387,30 @@ export default function AttendancePage() {
             </SelectContent>
           </Select>
         </div>
+
+        {selectedEventId && eventDays.length > 0 && (
+          <div className="w-44">
+            <label className="mb-1.5 block text-sm font-medium">Day</label>
+            <Select
+              value={activeDay || null}
+              onValueChange={(v) => {
+                if (v) setActiveDay(v);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {eventDays.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {dayLabel(d)}
+                    {d === todayKey() ? " · Today" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {selectedEventId && services.length > 0 && (
           <div className="w-56">
@@ -357,50 +471,24 @@ export default function AttendancePage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard
             icon={<Users className="h-5 w-5 text-primary" />}
-            label="Total Expected"
-            value={stats.totalExpected}
+            label="Registered"
+            value={stats.total}
           />
           <StatCard
             icon={<CheckCircle className="h-5 w-5 text-green-600" />}
-            label="Checked In"
+            label={`Checked In · ${dayLabel(activeDay)}`}
             value={stats.checkedIn}
           />
           <StatCard
             icon={<XCircle className="h-5 w-5 text-destructive" />}
-            label="No Show"
+            label={`No Show · ${dayLabel(activeDay)}`}
             value={stats.noShow}
           />
           <StatCard
             icon={<Clock className="h-5 w-5 text-amber-500" />}
-            label="Pending"
+            label={`Pending · ${dayLabel(activeDay)}`}
             value={stats.pending}
           />
-        </div>
-      )}
-
-      {/* Tab toggle */}
-      {selectedEventId && (
-        <div className="flex gap-1 rounded-lg border p-1 w-fit">
-          <button
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              activeTab === "pending"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("pending")}
-          >
-            Pending ({stats.pending})
-          </button>
-          <button
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              activeTab === "completed"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab("completed")}
-          >
-            Completed ({stats.checkedIn + stats.noShow})
-          </button>
         </div>
       )}
 
@@ -413,107 +501,164 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {selectedEventId && !loadingRegistrations && filteredRegistrations.length === 0 && (
+      {selectedEventId && !loadingRegistrations && eventDays.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
-          {activeTab === "pending" ? (
-            <UserCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
-          ) : (
-            <UserX className="mb-3 h-10 w-10 text-muted-foreground/50" />
-          )}
-          <p className="font-medium">
-            {activeTab === "pending"
-              ? "No pending check-ins"
-              : "No completed records"}
-          </p>
+          <CalendarDays className="mb-3 h-10 w-10 text-muted-foreground/50" />
+          <p className="font-medium">No attendance days</p>
           <p className="text-sm text-muted-foreground">
-            {activeTab === "pending"
-              ? "All volunteers have been checked in or there are no assigned registrations"
-              : "No volunteers have been checked in or marked as no show yet"}
+            This event has no date range configured
           </p>
         </div>
       )}
 
-      {selectedEventId && !loadingRegistrations && filteredRegistrations.length > 0 && (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Volunteer</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Status</TableHead>
-                {activeTab === "pending" && (
+      {selectedEventId &&
+        !loadingRegistrations &&
+        eventDays.length > 0 &&
+        filteredRegistrations.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
+            <UserCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
+            <p className="font-medium">No registrations</p>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery || selectedServiceId
+                ? "No registrations match the current filters"
+                : "No volunteers have registered for this event yet"}
+            </p>
+          </div>
+        )}
+
+      {selectedEventId &&
+        !loadingRegistrations &&
+        eventDays.length > 0 &&
+        filteredRegistrations.length > 0 && (
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Volunteer</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>{dayLabel(activeDay)}</TableHead>
+                  <TableHead>Overall</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRegistrations.map((reg) => {
-                const vol = reg.volunteerId;
-                const isProcessing = actionId === reg._id;
-                return (
-                  <TableRow key={reg._id}>
-                    <TableCell className="font-medium">
-                      {vol?.name || "—"}
-                    </TableCell>
-                    <TableCell>{vol?.phone || "—"}</TableCell>
-                    <TableCell>
-                      {reg.serviceId?.name ? (
-                        <Badge variant="outline">{reg.serviceId.name}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          STATUS_STYLES[reg.status] as
-                            | "default"
-                            | "secondary"
-                            | "destructive"
-                            | "outline"
-                        }
-                      >
-                        {STATUS_LABELS[reg.status] || reg.status}
-                      </Badge>
-                    </TableCell>
-                    {activeTab === "pending" && (
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRegistrations.map((reg) => {
+                  const vol = reg.volunteerId;
+                  const isProcessing = actionId === reg._id;
+                  const entry = dayEntryFor(reg, activeDay);
+                  return (
+                    <TableRow key={reg._id}>
+                      <TableCell className="font-medium">
+                        {vol?.name || "—"}
+                      </TableCell>
+                      <TableCell>{vol?.phone || "—"}</TableCell>
+                      <TableCell>
+                        {canAssign && services.length > 0 ? (
+                          <Select
+                            value={reg.serviceId?._id || null}
+                            onValueChange={(v) => {
+                              if (v) assignService(reg._id, v);
+                            }}
+                          >
+                            <SelectTrigger className="w-44 truncate">
+                              <SelectValue
+                                placeholder="Assign service"
+                                className="truncate"
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {services.map((s) => (
+                                <SelectItem key={s._id} value={s._id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : reg.serviceId?.name ? (
+                          <Badge variant="outline">{reg.serviceId.name}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {!entry ? (
+                          <Badge variant="outline">Pending</Badge>
+                        ) : entry.status === "attended" ? (
+                          <Badge className="bg-green-600 text-white hover:bg-green-600">
+                            Checked In
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">No Show</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            (OVERALL_STYLES[reg.status] as
+                              | "default"
+                              | "secondary"
+                              | "destructive"
+                              | "outline") || "outline"
+                          }
+                        >
+                          {OVERALL_LABELS[reg.status] || reg.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isProcessing}
-                            onClick={() =>
-                              markAttendance(reg._id, "attended")
-                            }
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <CheckCircle className="mr-1 h-3.5 w-3.5" />
-                            Check In
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isProcessing}
-                            onClick={() =>
-                              markAttendance(reg._id, "no_show")
-                            }
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <XCircle className="mr-1 h-3.5 w-3.5" />
-                            No Show
-                          </Button>
+                          {!entry || entry.status === "no_show" ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isProcessing}
+                                onClick={() =>
+                                  markDay(reg._id, activeDay, "attended")
+                                }
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                                Check In
+                              </Button>
+                              {!entry && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isProcessing}
+                                  onClick={() =>
+                                    markDay(reg._id, activeDay, "no_show")
+                                  }
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <XCircle className="mr-1 h-3.5 w-3.5" />
+                                  No Show
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isProcessing}
+                              onClick={() =>
+                                markDay(reg._id, activeDay, "unmark")
+                              }
+                              title="Remove this day's check-in"
+                            >
+                              <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                              Undo
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
     </div>
   );
 }

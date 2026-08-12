@@ -337,7 +337,94 @@ Prefer the `.../register` URL form — it uses the stable, human-readable event 
 
 ---
 
-### 7. Show a volunteer's seva ("My Seva" screen)
+### 7. Venue check-in (QR code at the event)
+
+| Method | Endpoint |
+|--------|----------|
+| `GET` | `/api/events/public/:eventId/check-in?phone=9876543210` |
+| `POST` | `/api/events/public/:eventId/check-in` |
+
+A QR is printed at the venue that opens `/check-in/:eventId`. The flow is **two steps**: the volunteer types their registered phone number, the app shows "Is this you?" (name + photo + assigned seva) and asks **which day** they are checking in for (events can be multi-day), and only after they confirm is attendance recorded. It is the phone-number identity, so use it *after* registration — **any registered volunteer can check in**, even without an assigned service. The admin sees who's present and assigns seva on the spot.
+
+Attendance is recorded **per day** — a volunteer who comes on day 1 and day 3 of a 5-day festival gets two separate check-in records.
+
+**Step 1 — Identity lookup (GET):**
+```
+curl "https://vcc-client.vercel.app/api/events/public/SKJ26V/check-in?phone=9876543210"
+```
+
+**Response (200):**
+```json
+{
+  "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/...jpg" },
+  "event": {
+    "_id": "...",
+    "name": "Sri Krishna Janmashtami 2026",
+    "venue": "Gadiraju convention centre",
+    "days": ["2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"]
+  },
+  "registration": {
+    "_id": "...",
+    "status": "assigned",
+    "alreadyCheckedIn": false,
+    "checkedInDays": [],
+    "noShowDays": [],
+    "serviceId": { "_id": "...", "name": "Parking" }
+  }
+}
+```
+
+Render one day chip per entry in `event.days` (default to today if the event is running). Mark chips in `checkedInDays` as done, chips in `noShowDays` as "was marked no show". When the volunteer confirms, send the chosen `date` with the POST.
+
+**Step 2 — Confirm attendance (POST):**
+
+**Request body (JSON):**
+```json
+{ "phone": "9876543210", "date": "2026-09-04" }
+```
+`date` is optional — when omitted it defaults to today if the event is running, otherwise the first event day. Responses include `date` and `checkedInDays`.
+
+**curl:**
+```
+curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/check-in ^
+  -H "Content-Type: application/json" ^
+  -d "{\"phone\":\"9876543210\",\"date\":\"2026-09-04\"}"
+```
+
+**Response (200 — checked in or already checked in):**
+```json
+{
+  "message": "Check-in successful",
+  "alreadyCheckedIn": false,
+  "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
+    "name": "Rama Das",
+    "phone": "9876543210",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
+  },
+  "event": { "_id": "...", "name": "Sri Krishna Janmashtami 2026", "venue": "Gadiraju convention centre" },
+  "registration": { "_id": "...", "status": "attended", "serviceId": null }
+}
+```
+
+- `alreadyCheckedIn: true` means the volunteer had already checked in **for that day** (the call is idempotent per day — safe to retry).
+- `registration.serviceId` is the seva they were assigned, if any.
+- A volunteer marked **`no_show` for that day who scans the QR is allowed to check in** — being at the venue is proof of presence, so that day is recorded as `attended`.
+- Per-day check-ins / no-shows can be undone by an admin from the attendance panel (`/admin/attendance`).
+
+**Possible errors:**
+
+| Status | Message | App should show |
+|--------|---------|----------------|
+| `400` | `Phone number must be exactly 10 digits` | Fix phone input |
+| `400` | `Invalid check-in date` | Wrong day / date not part of the event |
+| `404` | `Event not found` | Wrong QR / link |
+| `404` | `You are not registered as a volunteer` | "Not registered" |
+| `404` | `You are not registered for this event` | "Not registered for this event" |
+
+---
+
+### 8. Show a volunteer's seva ("My Seva" screen)
 
 | Method | Endpoint |
 |--------|----------|
@@ -407,16 +494,20 @@ A registration moves forward through these statuses. This is the "journey" of a 
 registered ──▶ assigned ──▶ attended
       │            │            │
       │            └──(admin assigns a service)──▶ assigned
+      │            │
+      │            └──(volunteer scans QR / admin marks)──▶ attended
       │
       └──(admin cancels)──▶ cancelled
+
+Undo (admin): attended ⇄ no_show, attended/no_show ─▶ assigned (pending)
 ```
 
 | Status | Who sets it | Meaning |
 |--------|-------------|---------|
 | `registered` | App / website (automatic) | Volunteer signed up for the event |
 | `assigned` | Admin | Admin put them on a specific service (Parking, etc.) |
-| `attended` | Coordinator | Volunteer showed up on the day |
-| `no_show` | Coordinator | They didn't show up |
+| `attended` | Coordinator / venue QR | Volunteer showed up on the day |
+| `no_show` | Coordinator | They didn't show up (can be overridden if they arrive later) |
 | `cancelled` | Admin | They backed out |
 
 The mobile app only ever *reads* these statuses. All status changes are admin-side via `PUT /api/registrations/:id/status`.
@@ -434,6 +525,8 @@ The mobile app only ever *reads* these statuses. All status changes are admin-si
 | `GET` | `/api/events/public/:eventId` | Single event by event code |
 | `GET` | `/api/events/public/:eventId/time-slots` | Event's availability slots |
 | `POST` | `/api/events/public/:eventId/register` | Register a volunteer for an event |
+| `GET` | `/api/events/public/:eventId/check-in?phone=` | Identity lookup before check-in ("is this you?") |
+| `POST` | `/api/events/public/:eventId/check-in` | Confirm a volunteer's attendance for a day (`{ phone, date }`) |
 | `POST` | `/api/registrations` | Register (event Mongo `_id` in body) |
 | `GET` | `/api/volunteers/by-phone/:phone` | Volunteer profile + seva assignments |
 | `GET` | `/api/seva/:phone` | Same as by-phone (used by `/my-seva/:phone` page) |
@@ -466,6 +559,7 @@ The mobile app only ever *reads* these statuses. All status changes are admin-si
 | `GET` | `/api/registrations/stats` | Registration stats |
 | `GET` | `/api/registrations/volunteer/:volunteerId` | A volunteer's registrations |
 | `PUT` | `/api/registrations/:id/status` | Change a registration's status |
+| `PUT` | `/api/registrations/:id/attendance` | Mark / unmark per-day attendance `{ date, status: attended|no_show|unmark }` |
 | `PUT` | `/api/registrations/:id/service` | Assign one volunteer to a service |
 | `PUT` | `/api/registrations/bulk-assign` | Assign many volunteers at once |
 | `POST` | `/api/devotees` | Create a devotee |

@@ -88,7 +88,7 @@
 </section>
 
 <section id="mobile">
-  <h2>Part 2 — Mobile Endpoints (7 calls your app needs)</h2>
+  <h2>Part 2 — Mobile Endpoints (8 calls your app needs)</h2>
 
   <h3>1. Check the server is alive</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/health</span></p>
@@ -186,7 +186,30 @@
   </table>
   <p class="note"><b>Alternative:</b> <code>POST /api/registrations</code> does the same but takes the Mongo <code>_id</code> as <code>eventId</code> in the body. Prefer the URL form above.</p>
 
-  <h3>7. Show a volunteer's seva ("My Seva")</h3>
+  <h3>7. Venue check-in (QR code at the event)</h3>
+  <p><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></p>
+  <p>Print a QR at the venue that opens <code>/check-in/:eventId</code>. The volunteer types their registered phone number and attendance is confirmed in one step. Any registered volunteer can check in — the admin sees who's present and assigns seva on the spot.</p>
+  <pre><code>curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/check-in ^
+  -H "Content-Type: application/json" ^
+  -d "{\"phone\":\"9876543210\"}"</code></pre>
+  <pre><code>{
+  "message": "Check-in successful",
+  "alreadyCheckedIn": false,
+  "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/...jpg" },
+  "event": { "_id": "...", "name": "Sri Krishna Janmashtami 2026", "venue": "Gadiraju convention centre" },
+  "registration": { "_id": "...", "status": "attended", "serviceId": null }
+}</code></pre>
+  <p><code>alreadyCheckedIn: true</code> means they had already checked in (idempotent). <code>serviceId</code> is their assigned seva, if any.</p>
+  <table>
+    <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
+    <tr><td>400</td><td>Phone number must be exactly 10 digits</td><td>Fix phone input</td></tr>
+    <tr><td>400</td><td>You have been marked as a no show</td><td>Cannot check in</td></tr>
+    <tr><td>404</td><td>Event not found</td><td>Wrong QR / link</td></tr>
+    <tr><td>404</td><td>You are not registered as a volunteer</td><td>"Not registered"</td></tr>
+    <tr><td>404</td><td>You are not registered for this event</td><td>"Not registered for this event"</td></tr>
+  </table>
+
+  <h3>8. Show a volunteer's seva ("My Seva")</h3>
   <p><span class="method">GET</span> <span class="endpoint">/api/volunteers/by-phone/:phone</span></p>
   <p>Returns the volunteer's profile + all registrations with event, assigned service, and coordinator contact. Use it for both the pre-registration check and the "My Seva" screen.</p>
   <pre><code>curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210</code></pre>
@@ -236,6 +259,7 @@
     <tr><td>GET</td><td>/api/events/public/:eventId</td><td>Event by event code</td></tr>
     <tr><td>GET</td><td>/api/events/public/:eventId/time-slots</td><td>Event's availability slots</td></tr>
     <tr><td>POST</td><td>/api/events/public/:eventId/register</td><td>Register volunteer for an event</td></tr>
+    <tr><td>POST</td><td>/api/events/public/:eventId/check-in</td><td>Confirm attendance at venue (QR)</td></tr>
     <tr><td>POST</td><td>/api/registrations</td><td>Register (event _id in body)</td></tr>
     <tr><td>GET</td><td>/api/volunteers/by-phone/:phone</td><td>Volunteer + seva assignments</td></tr>
     <tr><td>GET</td><td>/api/seva/:phone</td><td>Same as by-phone (My Seva page)</td></tr>

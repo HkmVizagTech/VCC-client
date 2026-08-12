@@ -3,11 +3,14 @@ import { connectDB } from "@/lib/db";
 import { Registration } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 
+// Any registered volunteer can be checked in (attendance is recorded even for
+// unassigned volunteers — services can be assigned afterwards). `attended` and
+// `no_show` can be undone to fix venue mistakes (e.g. wrong phone at check-in).
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  registered: ["assigned", "cancelled"],
+  registered: ["assigned", "attended", "no_show", "cancelled"],
   assigned: ["attended", "no_show", "cancelled"],
-  attended: [],
-  no_show: [],
+  attended: ["no_show", "assigned"],
+  no_show: ["attended", "assigned"],
   cancelled: [],
 };
 
@@ -15,7 +18,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const auth = await authenticateWithRole(req, "event_coordinator");
+    // Service coordinators manage their team's attendance at the venue.
+    const auth = await authenticateWithRole(req, "service_coordinator");
     if (auth instanceof NextResponse) return auth;
 
     const { id } = await params;

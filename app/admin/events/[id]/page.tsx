@@ -49,8 +49,10 @@ import {
   MapPin,
   Users,
   Copy,
+  QrCode,
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
+import { CheckInQr } from "@/components/check-in-qr";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
 import { RefreshButton } from "@/components/refresh-button";
 
@@ -118,6 +120,7 @@ export default function EventDetailPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
@@ -365,6 +368,23 @@ export default function EventDetailPage() {
           {event &&
             (canManage ? (
               <div className="flex items-center gap-2">
+                <Dialog
+                  open={qrOpen}
+                  onOpenChange={setQrOpen}
+                >
+                  <DialogTrigger render={<Button variant="outline" size="sm" />}>
+                    <QrCode className="mr-2 h-4 w-4" />
+                    Check-in QR
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Venue Check-in QR</DialogTitle>
+                    </DialogHeader>
+                    {event && (
+                      <CheckInQr eventId={event.eventId} eventName={event.name} />
+                    )}
+                  </DialogContent>
+                </Dialog>
                 <Button
                   variant="outline"
                   size="sm"
