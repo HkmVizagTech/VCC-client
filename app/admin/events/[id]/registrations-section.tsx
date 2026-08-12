@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ServiceAvailabilityPicker,
   serviceAvailabilitySummary,
-  availableOn,
+  slotsAreDateSpecific,
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
 import {
@@ -185,12 +185,28 @@ export function RegistrationsSection({
     });
   }, [eventStart, eventEnd]);
 
+  const dateSpecific = useMemo(
+    () => slotsAreDateSpecific(availabilitySlots),
+    [availabilitySlots]
+  );
+
   const filteredRegistrations = useMemo(() => {
-    if (!availDate || !availSlot) return registrations;
-    return registrations.filter((r) =>
-      availableOn(r.serviceAvailability, availDate, availSlot)
-    );
-  }, [registrations, availDate, availSlot]);
+    if (!availDate && !availSlot) return registrations;
+    return registrations.filter((r) => {
+      const entries = r.serviceAvailability || [];
+      if (!entries.length) return false;
+      if (dateSpecific) {
+        return availSlot
+          ? entries.some((e) => e.timeSlot === availSlot)
+          : true;
+      }
+      return entries.some(
+        (e) =>
+          (!availDate || e.date === availDate) &&
+          (!availSlot || e.timeSlot === availSlot)
+      );
+    });
+  }, [registrations, availDate, availSlot, dateSpecific]);
 
   const changeStatus = async (id: string, status: string) => {
     setChangingId(id);
@@ -289,7 +305,7 @@ export function RegistrationsSection({
           <ClipboardList className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-bold">Registrations</h2>
           <Badge variant="secondary">
-            {availDate && availSlot
+            {availDate || availSlot
               ? filteredRegistrations.length
               : registrations.length}
           </Badge>
@@ -497,28 +513,30 @@ export function RegistrationsSection({
           <span className="text-sm font-medium text-muted-foreground">
             Available:
           </span>
-          <Select
-            value={availDate || null}
-            onValueChange={(v) => {
-              if (v && v !== "__all") setAvailDate(v);
-              else setAvailDate("");
-            }}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Any day" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">Any day</SelectItem>
-              {eventDays.map((d) => (
-                <SelectItem
-                  key={format(d, "yyyy-MM-dd")}
-                  value={format(d, "yyyy-MM-dd")}
-                >
-                  {format(d, "EEE, MMM d")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!dateSpecific && (
+            <Select
+              value={availDate || null}
+              onValueChange={(v) => {
+                if (v && v !== "__all") setAvailDate(v);
+                else setAvailDate("");
+              }}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Any day" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">Any day</SelectItem>
+                {eventDays.map((d) => (
+                  <SelectItem
+                    key={format(d, "yyyy-MM-dd")}
+                    value={format(d, "yyyy-MM-dd")}
+                  >
+                    {format(d, "EEE, MMM d")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select
             value={availSlot || null}
             onValueChange={(v) => {
@@ -550,11 +568,12 @@ export function RegistrationsSection({
               Clear
             </Button>
           )}
-          {availDate && availSlot && (
+          {availSlot && (
             <span className="text-sm text-muted-foreground">
-              {filteredRegistrations.length} available on{" "}
-              {format(new Date(`${availDate}T00:00:00`), "EEE, MMM d")} ·{" "}
-              {availSlot}
+              {filteredRegistrations.length} available
+              {dateSpecific
+                ? ` in ${availSlot}`
+                : ` on ${format(new Date(`${availDate}T00:00:00`), "EEE, MMM d")} · ${availSlot}`}
             </span>
           )}
         </div>
@@ -581,7 +600,7 @@ export function RegistrationsSection({
           <UserCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
           <p className="font-medium">No volunteers available</p>
           <p className="text-sm text-muted-foreground">
-            No registrations for the selected day and time slot
+            No registrations match the selected availability
           </p>
         </div>
       ) : (

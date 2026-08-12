@@ -431,9 +431,9 @@ The mobile app only ever *reads* these and lets the volunteer set `confirmed` or
 | `GET` | `/api/volunteers/search?q=` | Quick search |
 | `GET/PUT` | `/api/volunteers/:id` | Get / update volunteer |
 | `GET/POST` | `/api/events` | List / create events |
-| `GET/PUT` | `/api/events/:id` | Get / update event |
+| `GET/PUT` | `/api/events/:id` | Get / update event (changing `eventId` requires Super Admin + admin password) |
 | `PUT` | `/api/events/:id/status` | Advance event status |
-| `DELETE` | `/api/events/:id` | Delete draft event (Super Admin) |
+| `DELETE` | `/api/events/:id` | Delete event (Super Admin, requires admin password in body) |
 | `GET` | `/api/services/event/:eventId` | Services for an event |
 | `POST` | `/api/services` | Create a service |
 | `PUT/DELETE` | `/api/services/:id` | Update / delete service |

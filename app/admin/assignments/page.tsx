@@ -24,8 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  availableOn,
   serviceAvailabilitySummary,
+  slotsAreDateSpecific,
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
 import { toast } from "sonner";
@@ -196,6 +196,11 @@ export default function AssignmentsPage() {
     });
   }, [selectedEvent]);
 
+  const dateSpecific = useMemo(
+    () => slotsAreDateSpecific(selectedEvent?.availabilitySlots || []),
+    [selectedEvent]
+  );
+
   const unassigned = useMemo(() => {
     return registrations.filter(
       (r) =>
@@ -207,9 +212,20 @@ export default function AssignmentsPage() {
   const filteredUnassigned = useMemo(() => {
     const q = search.toLowerCase();
     return unassigned.filter((r) => {
-      if (availDate && availSlot) {
-        if (!availableOn(r.serviceAvailability, availDate, availSlot)) {
-          return false;
+      if (availDate || availSlot) {
+        const entries = r.serviceAvailability || [];
+        if (!entries.length) return false;
+        if (dateSpecific) {
+          if (availSlot && !entries.some((e) => e.timeSlot === availSlot)) {
+            return false;
+          }
+        } else {
+          const match = entries.some(
+            (e) =>
+              (!availDate || e.date === availDate) &&
+              (!availSlot || e.timeSlot === availSlot)
+          );
+          if (!match) return false;
         }
       }
       if (!q) return true;
@@ -222,7 +238,7 @@ export default function AssignmentsPage() {
         (vol.skills || []).some((s) => s.toLowerCase().includes(q))
       );
     });
-  }, [unassigned, search, availDate, availSlot]);
+  }, [unassigned, search, availDate, availSlot, dateSpecific]);
 
   const assignedByService = useMemo(() => {
     const map = new Map<string, Registration[]>();
@@ -430,28 +446,30 @@ export default function AssignmentsPage() {
                   <span className="text-sm font-medium text-muted-foreground">
                     Available:
                   </span>
-                  <Select
-                    value={availDate || null}
-                    onValueChange={(v) => {
-                      if (v && v !== "__all") setAvailDate(v);
-                      else setAvailDate("");
-                    }}
-                  >
-                    <SelectTrigger className="w-44">
-                      <SelectValue placeholder="Any day" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all">Any day</SelectItem>
-                      {eventDays.map((d) => (
-                        <SelectItem
-                          key={format(d, "yyyy-MM-dd")}
-                          value={format(d, "yyyy-MM-dd")}
-                        >
-                          {format(d, "EEE, MMM d")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {!dateSpecific && (
+                    <Select
+                      value={availDate || null}
+                      onValueChange={(v) => {
+                        if (v && v !== "__all") setAvailDate(v);
+                        else setAvailDate("");
+                      }}
+                    >
+                      <SelectTrigger className="w-44">
+                        <SelectValue placeholder="Any day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all">Any day</SelectItem>
+                        {eventDays.map((d) => (
+                          <SelectItem
+                            key={format(d, "yyyy-MM-dd")}
+                            value={format(d, "yyyy-MM-dd")}
+                          >
+                            {format(d, "EEE, MMM d")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Select
                     value={availSlot || null}
                     onValueChange={(v) => {
@@ -483,7 +501,7 @@ export default function AssignmentsPage() {
                       Clear
                     </Button>
                   )}
-                  {availDate && availSlot && (
+                  {(availDate || availSlot) && (
                     <Badge variant="secondary">
                       {filteredUnassigned.length} available
                     </Badge>

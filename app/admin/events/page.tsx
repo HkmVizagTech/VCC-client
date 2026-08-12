@@ -18,21 +18,12 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -56,6 +47,7 @@ import {
 } from "@/components/custom-fields-builder";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshButton } from "@/components/refresh-button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const EVENT_STATUSES = [
   "draft",
@@ -114,6 +106,7 @@ interface EventFormPayload {
   coordinatorId: string;
   photoRequired: boolean;
   eventId?: string;
+  password?: string;
 }
 
 const emptyForm = {
@@ -152,6 +145,11 @@ export default function EventsPage() {
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [editPassword, setEditPassword] = useState("");
+  const { user } = useAuth();
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -199,6 +197,7 @@ export default function EventsPage() {
   const resetForm = () => {
     setForm(emptyForm);
     setEditing(null);
+    setEditPassword("");
   };
 
   const handleSubmit = async () => {
@@ -242,6 +241,17 @@ export default function EventsPage() {
       };
       if (!editing) {
         body.eventId = form.eventId.trim().toUpperCase();
+      } else if (user?.role === "super_admin") {
+        const newId = form.eventId.trim().toUpperCase();
+        if (newId !== editing.eventId) {
+          if (!editPassword) {
+            toast.error("Enter your password to change the Event ID");
+            setSubmitting(false);
+            return;
+          }
+          body.eventId = newId;
+          body.password = editPassword;
+        }
       }
       const res = await authFetch(url, {
         method,
@@ -285,20 +295,31 @@ export default function EventsPage() {
     }
   };
 
-  const handleDelete = async (event: EventItem) => {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    if (!deletePassword) {
+      toast.error("Enter your password to confirm deletion");
+      return;
+    }
+    setDeleting(true);
     try {
-      const res = await authFetch(`/api/events/${event._id}`, {
+      const res = await authFetch(`/api/events/${deleteTarget._id}`, {
         method: "DELETE",
+        body: JSON.stringify({ password: deletePassword }),
       });
       const data = await res.json();
       if (res.ok) {
         toast.success("Event deleted");
+        setDeleteTarget(null);
+        setDeletePassword("");
         fetchEvents();
       } else {
         toast.error(data.message || "Could not delete event");
       }
     } catch {
       toast.error("Could not delete event");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -325,6 +346,7 @@ export default function EventsPage() {
 
   const openCreate = () => {
     fetchCoordinators();
+    setEditPassword("");
     setDialogOpen(true);
   };
 
@@ -384,12 +406,30 @@ export default function EventsPage() {
                       })
                     }
                     placeholder="e.g. SKJ26"
-                    disabled={!!editing}
+                    disabled={!!editing && user?.role !== "super_admin"}
                   />
-                  {!editing && (
+                  {!editing ? (
                     <p className="text-xs text-muted-foreground">
                       Unique ID shared with the mobile app. Cannot be changed
                       later.
+                    </p>
+                  ) : user?.role === "super_admin" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Changing the Event ID requires your password.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Unique ID shared with the mobile app. Cannot be changed.
+                    </p>
+                  )}
+                  {editing && user?.role === "super_admin" && (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                      This ID is shared with the mobile app. Changing it means
+                      the public registration link becomes{" "}
+                      <span className="font-mono">
+                        /events/{form.eventId.toUpperCase() || "..."}/register
+                      </span>{" "}
+                      and the mobile app will use the new ID going forward.
                     </p>
                   )}
                 </div>
@@ -500,6 +540,21 @@ export default function EventsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {editing && user?.role === "super_admin" && (
+                <div className="space-y-2">
+                  <Label>Confirm Password</Label>
+                  <Input
+                    type="password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="Your admin password"
+                    autoComplete="current-password"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required only if you change the Event ID.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Availability Time Slots</Label>
                 <p className="text-xs text-muted-foreground">
@@ -714,38 +769,18 @@ export default function EventsPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        {event.status === "draft" && (
-                          <AlertDialog>
-                            <AlertDialogTrigger
-                              render={
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  title="Delete"
-                                />
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Delete &ldquo;{event.name}&rdquo;?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete the draft event.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(event)}
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                        {user?.role === "super_admin" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setDeleteTarget(event);
+                              setDeletePassword("");
+                            }}
+                            title="Delete event"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         )}
                       </div>
                     </TableCell>
@@ -785,6 +820,55 @@ export default function EventsPage() {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeletePassword("");
+          }
+        }}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete event?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes &ldquo;{deleteTarget?.name}&rdquo;
+              ({deleteTarget?.eventId}), along with all its services and
+              registrations. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Re-enter your password to confirm</Label>
+            <Input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Your admin password"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeletePassword("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete event"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

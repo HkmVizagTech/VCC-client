@@ -14,14 +14,13 @@ const MONTH_PATTERN =
   /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
 const ORDINAL_DATE_PATTERN = /\b\d{1,2}(st|nd|rd|th)\b/i;
 
-function slotsAreDateSpecific(slots: string[]): boolean {
+export function slotsAreDateSpecific(slots: string[]): boolean {
   return slots.some(
     (s) => MONTH_PATTERN.test(s) || ORDINAL_DATE_PATTERN.test(s)
   );
 }
 
-export function serviceAvailabilitySummary(
-  entries?: ServiceAvailabilityEntry[]
+export function serviceAvailabilitySummary(  entries?: ServiceAvailabilityEntry[]
 ): string {
   if (!entries || entries.length === 0) return "";
   return entries
