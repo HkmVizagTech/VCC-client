@@ -434,7 +434,7 @@ export default function AttendancePage() {
       )}
 
       {selectedEventId && !loadingRegistrations && filteredRegistrations.length > 0 && (
-        <div className="rounded-md border">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

@@ -205,7 +205,7 @@ export default function EventsPage() {
       toast.error("Name, event start and event end are required");
       return;
     }
-    if (!editing && !form.eventId.trim()) {
+    if (!editing && !(form.eventId || "").trim()) {
       toast.error("Event ID is required (e.g. SKJ26)");
       return;
     }
@@ -240,9 +240,9 @@ export default function EventsPage() {
         photoRequired: form.photoRequired,
       };
       if (!editing) {
-        body.eventId = form.eventId.trim().toUpperCase();
+        body.eventId = (form.eventId || "").trim().toUpperCase();
       } else if (user?.role === "super_admin") {
-        const newId = form.eventId.trim().toUpperCase();
+        const newId = (form.eventId || "").trim().toUpperCase();
         if (newId !== editing.eventId) {
           if (!editPassword) {
             toast.error("Enter your password to change the Event ID");
@@ -326,7 +326,7 @@ export default function EventsPage() {
   const openEdit = (event: EventItem) => {
     setEditing(event);
     setForm({
-      eventId: event.eventId,
+      eventId: event.eventId || "",
       name: event.name,
       description: event.description || "",
       venue: event.venue || "",
@@ -346,6 +346,8 @@ export default function EventsPage() {
 
   const openCreate = () => {
     fetchCoordinators();
+    setForm(emptyForm);
+    setEditing(null);
     setEditPassword("");
     setDialogOpen(true);
   };
@@ -427,7 +429,7 @@ export default function EventsPage() {
                       This ID is shared with the mobile app. Changing it means
                       the public registration link becomes{" "}
                       <span className="font-mono">
-                        /events/{form.eventId.toUpperCase() || "..."}/register
+                        /events/{(form.eventId || "").toUpperCase() || "..."}/register
                       </span>{" "}
                       and the mobile app will use the new ID going forward.
                     </p>
@@ -682,7 +684,7 @@ export default function EventsPage() {
           </p>
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

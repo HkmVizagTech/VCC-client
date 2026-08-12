@@ -72,7 +72,7 @@ function SidebarContent({
         <h2 className="text-lg font-bold text-primary">VCC Admin</h2>
         <p className="text-xs text-muted-foreground">HKM Visakhapatnam</p>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {nav.map((item) => (
           <Link
             key={item.href}
@@ -138,7 +138,7 @@ export default function AdminLayout({
         <SidebarContent role={user.role} onLogout={handleLogout} />
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:px-6">
           <Sheet>
             <SheetTrigger
