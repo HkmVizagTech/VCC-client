@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VCC Session Summary — Attendance, Check-in &amp; Mobile API Docs</title>
+<style>
+  :root { --accent:#d97706; --dark:#1c1917; --bg:#faf7f2; --card:#ffffff; --border:#e7e5e4; --code-bg:#292524; --code-fg:#e7e5e4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--dark); line-height: 1.6; }
+  header { background: linear-gradient(135deg, #1c1917, #44403c); color: #fff; padding: 40px 20px; text-align: center; }
+  header h1 { font-size: 1.7rem; margin-bottom: 6px; }
+  header p { color: #d6d3d1; font-size: .95rem; }
+  header .badge { display:inline-block; background: var(--accent); color:#fff; border-radius:999px; padding:3px 14px; font-size:.8rem; margin-top:10px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  section { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:22px 24px; margin-bottom:22px; }
+  h2 { font-size: 1.3rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 3px solid var(--accent); color: #292524; }
+  h3 { font-size: 1.02rem; margin: 14px 0 6px; color: #44403c; }
+  p, li { font-size: .95rem; }
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .87rem; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f0e8; }
+  code { font-family: "Cascadia Code", Consolas, Menlo, monospace; font-size: .85em; background: #f5f0e8; padding: 2px 6px; border-radius: 4px; }
+  pre { background: var(--code-bg); color: var(--code-fg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 10px 0; font-size: .85rem; line-height: 1.5; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .note { background:#fffbeb; border-left:4px solid var(--accent); padding:10px 14px; border-radius:6px; margin:10px 0; font-size:.9rem; }
+  footer { text-align: center; color: #a8a29e; font-size: .85rem; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VCC Session Summary</h1>
+  <p>Attendance, Check-in &amp; Mobile API Docs — Hare Krishna Movement Visakhapatnam</p>
+  <span class="badge">August 12, 2026 &middot; All work committed &amp; pushed</span>
+</header>
+
+<main>
+
+<section>
+  <h2>1. What was accomplished</h2>
+  <p>Completed the <b>volunteer attendance feature</b> end-to-end, per the plan: volunteers check themselves in at the venue via a printed QR, attendance is tracked <b>per day</b> and <b>per event</b>, and admins manage it all from a dedicated screen. Also delivered shareable API documentation for the mobile team.</p>
+  <ul>
+    <li><b>Venue QR check-in</b> — public page (<code>/check-in/:eventId</code>, no login): scan QR → enter phone → <b>confirm identity</b> (name + photo + seva) → pick the <b>day</b> → confirm attendance.</li>
+    <li><b>Per-day attendance</b> — a multi-day festival records one entry per day the volunteer attends (<code>dayAttendance</code> on the registration).</li>
+    <li><b>Admin attendance page</b> (<code>/admin/attendance</code>) — event + day selectors, per-day stats, check-in / no-show / undo actions, assign seva on the spot, and a check-in QR button.</li>
+    <li><b>Rule updates</b> — any registered volunteer can check in; a no-show volunteer who scans the QR is recorded as attended; mistaken check-ins/no-shows can be undone; service coordinators can mark attendance.</li>
+    <li><b>Mobile team docs</b> — dedicated API docs (Markdown, HTML, PDF) for Register, My Seva, time slots, and check-in.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>2. The volunteer check-in flow</h2>
+  <pre><code>Venue QR → /check-in/&lt;EVENT_CODE&gt;
+   └─ Volunteer enters registered phone number
+        └─ "Is this you?" — name, photo, assigned seva
+             └─ Pick the day (chips, defaults to today)
+                  └─ Confirm Attendance → day recorded
+</code></pre>
+  <p>Any volunteer with a registration can check in — even without an assigned service. The admin sees who is present and assigns sevas on the spot.</p>
+</section>
+
+<section>
+  <h2>3. Files created &amp; changed</h2>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td><code>app/api/events/public/[eventId]/check-in/route.ts</code></td><td><b>New</b> — GET identity lookup + POST per-day confirm (no-show override, idempotent per day)</td></tr>
+    <tr><td><code>app/check-in/[eventId]/page.tsx</code></td><td><b>New</b> — public check-in page with identity confirm + day selector</td></tr>
+    <tr><td><code>components/check-in-qr.tsx</code></td><td><b>New</b> — QR generator with copyable link (admin dialogs)</td></tr>
+    <tr><td><code>app/api/registrations/[id]/attendance/route.ts</code></td><td><b>New</b> — admin per-day attendance (attended / no_show / unmark)</td></tr>
+    <tr><td><code>app/api/stats/events/route.ts</code></td><td><b>New</b> — lightweight event list for the attendance screen</td></tr>
+    <tr><td><code>lib/utils/event-days.ts</code></td><td><b>New</b> — event-day computation &amp; date validation helpers</td></tr>
+    <tr><td><code>lib/models/registration.model.ts</code></td><td><b>Changed</b> — added <code>dayAttendance</code> field</td></tr>
+    <tr><td><code>app/api/registrations/[id]/status/route.ts</code></td><td><b>Changed</b> — undo transitions + service-coordinator access</td></tr>
+    <tr><td><code>app/admin/attendance/page.tsx</code></td><td><b>Changed</b> — reworked to per-day view with assignment + undo + QR</td></tr>
+    <tr><td><code>app/admin/events/[id]/page.tsx</code></td><td><b>Changed</b> — added Check-in QR dialog</td></tr>
+    <tr><td><code>API-DOCS.md</code> / <code>.html</code></td><td><b>Changed</b> — per-day check-in flow, v1.2</td></tr>
+    <tr><td><code>CHECK-IN-API.md</code>, <code>MOBILE-APP-API.md/.html/.pdf</code></td><td><b>New</b> — mobile-team API documentation</td></tr>
+    <tr><td><code>CHANGELOG.md</code>, <code>README.md</code>, <code>package.json</code></td><td><b>Changed</b> — changelog entries, endpoint list, <code>qrcode</code> dependency</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>4. Commits pushed to GitHub</h2>
+  <table>
+    <tr><th>Hash</th><th>Commit</th></tr>
+    <tr><td><code>c50bbf0</code></td><td>docs: document time-slots endpoint in mobile API docs and regenerate PDF</td></tr>
+    <tr><td><code>e4e43b3</code></td><td>docs: add PDF of Register &amp; My Seva API doc for the mobile team</td></tr>
+    <tr><td><code>1cfce14</code></td><td>docs: regenerate check-in section in API-DOCS.html for per-day flow</td></tr>
+    <tr><td><code>003e979</code></td><td>docs: add shareable HTML version of the Register &amp; My Seva API doc</td></tr>
+    <tr><td><code>e35dfd5</code></td><td><b>feat: venue QR check-in with per-day attendance tracking</b> (18 files, +2179)</td></tr>
+  </table>
+  <p>Repository: <code>github.com/HkmVizagTech/VCC-client</code> &middot; branch <code>main</code> &middot; deployed at <code>vcc-client.vercel.app</code></p>
+</section>
+
+<section>
+  <h2>5. Public API surface (mobile app + harekrishnavizag.org)</h2>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td><code>/api/events/public</code></td><td>List events</td></tr>
+    <tr><td>GET</td><td><code>/api/events/public/:eventId</code></td><td>Event details (+ <code>availabilitySlots</code>, custom fields)</td></tr>
+    <tr><td>GET</td><td><code>/api/events/public/:eventId/time-slots</code></td><td>Availability slots from the admin-created event</td></tr>
+    <tr><td>POST</td><td><code>/api/events/public/:eventId/register</code></td><td>Register a volunteer (mobile app + website)</td></tr>
+    <tr><td>GET</td><td><code>/api/events/public/:eventId/check-in?phone=</code></td><td>Identity lookup before check-in</td></tr>
+    <tr><td>POST</td><td><code>/api/events/public/:eventId/check-in</code></td><td>Confirm attendance for a day</td></tr>
+    <tr><td>GET</td><td><code>/api/volunteers/by-phone/:phone</code></td><td>My Seva — profile + assignments</td></tr>
+    <tr><td>POST</td><td><code>/api/upload/photo</code></td><td>Volunteer photo upload → <code>photoKey</code></td></tr>
+    <tr><td>PUT</td><td><code>/api/registrations/:id/attendance</code></td><td>Admin per-day attendance marking (admin)</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>6. Mobile-team deliverables</h2>
+  <ul>
+    <li><b>MOBILE-APP-API.pdf</b> — Register, My Seva, and time slots (3 calls) — share this one</li>
+    <li><b>MOBILE-APP-API.html / .md</b> — same content, web-friendly</li>
+    <li><b>CHECK-IN-API.md</b> — the two check-in calls (identity lookup + per-day confirm)</li>
+    <li><b>API-DOCS.html / .md</b> — full reference (v1.2)</li>
+  </ul>
+</section>
+
+<section>
+  <h2>7. Notes &amp; possible next steps</h2>
+  <ul>
+    <li>Volunteers self-check-in via the QR page (<b>no login</b>); the admin page is login-protected by design.</li>
+    <li>Existing registrations (before <code>dayAttendance</code>) work fine — per-day history starts from now.</li>
+    <li>Possible additions: generic <code>/check-in</code> event-picker page, check-in timestamps on My Seva, attendance matrix report.</li>
+  </ul>
+  <p class="note">All validations passed before pushing: TypeScript ✅ &middot; ESLint ✅ (0 errors) &middot; Next.js build ✅.</p>
+</section>
+
+</main>
+<footer>VCC Session Summary &middot; Volunteer Care Cell, Hare Krishna Movement Visakhapatnam &middot; August 12, 2026</footer>
+</body>
+</html>
