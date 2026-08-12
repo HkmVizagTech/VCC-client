@@ -2,7 +2,7 @@
 
 **System:** Volunteer Care Cell (VCC) — Hare Krishna Movement Visakhapatnam
 **Audience:** Mobile app developers, testers, and anyone integrating with the VCC backend.
-**Version:** 1.1 (merged single-app deployment)
+**Version:** 1.2 (merged single-app deployment · per-day attendance check-in)
 
 > If you're reading this to learn what an API is, start at [Part 1 — The Basics](#part-1--the-basics). If you're a developer integrating the app, jump to [Part 2 — Mobile Endpoints](#part-2--mobile-endpoints-the-7-calls-your-app-needs).
 

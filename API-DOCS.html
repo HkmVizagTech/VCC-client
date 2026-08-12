@@ -37,14 +37,14 @@
 <header>
   <h1>VCC API Reference</h1>
   <p>Hare Krishna Movement Visakhapatnam &mdash; Volunteer Mobile App Integration</p>
-  <span class="badge">Version 1.1 &middot; Merged single-app deployment</span>
+  <span class="badge">Version 1.2 &middot; Per-day attendance check-in</span>
 </header>
 
 <main>
 
 <nav class="toc">
   <a href="#basics">1. The Basics</a>
-  <a href="#mobile">2. Mobile Endpoints (7 calls)</a>
+  <a href="#mobile">2. Mobile Endpoints (8 calls)</a>
   <a href="#lifecycle">3. Status Lifecycle</a>
   <a href="#full">4. Full Endpoint List</a>
   <a href="#errors">5. Error Handling</a>
@@ -187,23 +187,51 @@
   <p class="note"><b>Alternative:</b> <code>POST /api/registrations</code> does the same but takes the Mongo <code>_id</code> as <code>eventId</code> in the body. Prefer the URL form above.</p>
 
   <h3>7. Venue check-in (QR code at the event)</h3>
-  <p><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/check-in</span></p>
-  <p>Print a QR at the venue that opens <code>/check-in/:eventId</code>. The volunteer types their registered phone number and attendance is confirmed in one step. Any registered volunteer can check in — the admin sees who's present and assigns seva on the spot.</p>
+  <p>A QR is printed at the venue that opens <code>/check-in/:eventId</code>. The flow is <b>two steps</b>: the volunteer types their registered phone number, the app shows "Is this you?" (name + photo + assigned seva) and asks <b>which day</b> they are checking in for, and only after they confirm is attendance recorded. Attendance is <b>per day</b> — a volunteer who comes on day 1 and day 3 of a multi-day festival gets two separate check-in records.</p>
+  <p><span class="method">GET</span> <span class="endpoint">/api/events/public/:eventId/check-in?phone=9876543210</span> &nbsp;— identity lookup</p>
+  <pre><code>curl "https://vcc-client.vercel.app/api/events/public/SKJ26V/check-in?phone=9876543210"</code></pre>
+  <pre><code>{
+  "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/...jpg" },
+  "event": {
+    "_id": "...",
+    "name": "Sri Krishna Janmashtami 2026",
+    "venue": "Gadiraju convention centre",
+    "days": ["2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"]
+  },
+  "registration": {
+    "_id": "...",
+    "status": "assigned",
+    "alreadyCheckedIn": false,
+    "checkedInDays": [],
+    "noShowDays": [],
+    "serviceId": { "_id": "...", "name": "Parking" }
+  }
+}</code></pre>
+  <p>Render one day chip per entry in <code>event.days</code> (default to today if the event is running). Mark chips in <code>checkedInDays</code> as done, chips in <code>noShowDays</code> as "was marked no show". If <b>every</b> day is in <code>checkedInDays</code>, show "Already checked in" and skip the confirm step.</p>
+  <p><span class="method">POST</span> <span class="endpoint">/api/events/public/:eventId/check-in</span> &nbsp;— confirm attendance for a day</p>
+  <p>Send the phone and the day the volunteer selected. Any registered volunteer can check in — even without an assigned service.</p>
+  <pre><code>{
+  "phone": "9876543210",
+  "date": "2026-09-04"
+}</code></pre>
+  <p><code>date</code> is optional (<code>yyyy-MM-dd</code> event day). When omitted it defaults to today if the event is running, otherwise the first event day.</p>
   <pre><code>curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/check-in ^
   -H "Content-Type: application/json" ^
-  -d "{\"phone\":\"9876543210\"}"</code></pre>
+  -d "{\"phone\":\"9876543210\",\"date\":\"2026-09-04\"}"</code></pre>
   <pre><code>{
   "message": "Check-in successful",
   "alreadyCheckedIn": false,
+  "date": "2026-09-04",
+  "checkedInDays": ["2026-09-04"],
   "volunteer": { "_id": "...", "name": "Rama Das", "phone": "9876543210", "photoKey": "volunteers/...jpg" },
   "event": { "_id": "...", "name": "Sri Krishna Janmashtami 2026", "venue": "Gadiraju convention centre" },
   "registration": { "_id": "...", "status": "attended", "serviceId": null }
 }</code></pre>
-  <p><code>alreadyCheckedIn: true</code> means they had already checked in (idempotent). <code>serviceId</code> is their assigned seva, if any.</p>
+  <p><code>alreadyCheckedIn: true</code> means they had already checked in <b>for that day</b> (idempotent per day). A day marked <code>no_show</code> is overridden to <code>attended</code> when the volunteer checks in — being at the venue scanning the QR is proof of presence. <code>serviceId</code> is their assigned seva, if any.</p>
   <table>
     <tr><th>Status</th><th>Message</th><th>App should show</th></tr>
     <tr><td>400</td><td>Phone number must be exactly 10 digits</td><td>Fix phone input</td></tr>
-    <tr><td>400</td><td>You have been marked as a no show</td><td>Cannot check in</td></tr>
+    <tr><td>400</td><td>Invalid check-in date</td><td>Wrong day / not part of the event</td></tr>
     <tr><td>404</td><td>Event not found</td><td>Wrong QR / link</td></tr>
     <tr><td>404</td><td>You are not registered as a volunteer</td><td>"Not registered"</td></tr>
     <tr><td>404</td><td>You are not registered for this event</td><td>"Not registered for this event"</td></tr>
@@ -243,9 +271,10 @@
     <tr><td><code>registered</code></td><td>App / website</td><td>Signed up for event</td></tr>
     <tr><td><code>assigned</code></td><td>Admin</td><td>Put on a service (Parking, etc.)</td></tr>
     <tr><td><code>attended</code></td><td>Coordinator</td><td>Showed up</td></tr>
-    <tr><td><code>no_show</code></td><td>Coordinator</td><td>Didn't show</td></tr>
+    <tr><td><code>no_show</code></td><td>Coordinator</td><td>Didn't show (can be overridden if they arrive later)</td></tr>
     <tr><td><code>cancelled</code></td><td>Admin</td><td>Backed out</td></tr>
   </table>
+  <p class="note">Attendance is recorded <b>per day</b> for multi-day events. Overall <code>attended</code> means the volunteer checked in on at least one day. Per-day check-ins / no-shows can be undone by an admin from the attendance panel.</p>
   <p>The app only reads these statuses. All status changes are admin-side via <code>PUT /api/registrations/:id/status</code>.</p>
 </section>
 
@@ -259,7 +288,8 @@
     <tr><td>GET</td><td>/api/events/public/:eventId</td><td>Event by event code</td></tr>
     <tr><td>GET</td><td>/api/events/public/:eventId/time-slots</td><td>Event's availability slots</td></tr>
     <tr><td>POST</td><td>/api/events/public/:eventId/register</td><td>Register volunteer for an event</td></tr>
-    <tr><td>POST</td><td>/api/events/public/:eventId/check-in</td><td>Confirm attendance at venue (QR)</td></tr>
+    <tr><td>GET</td><td>/api/events/public/:eventId/check-in?phone=</td><td>Identity lookup before check-in ("is this you?")</td></tr>
+    <tr><td>POST</td><td>/api/events/public/:eventId/check-in</td><td>Confirm attendance for a day ({ phone, date })</td></tr>
     <tr><td>POST</td><td>/api/registrations</td><td>Register (event _id in body)</td></tr>
     <tr><td>GET</td><td>/api/volunteers/by-phone/:phone</td><td>Volunteer + seva assignments</td></tr>
     <tr><td>GET</td><td>/api/seva/:phone</td><td>Same as by-phone (My Seva page)</td></tr>
@@ -281,10 +311,12 @@
     <tr><td>POST</td><td>/api/services</td><td>Create service</td></tr>
     <tr><td>GET</td><td>/api/registrations/event/:eventId</td><td>Registrations for event</td></tr>
     <tr><td>PUT</td><td>/api/registrations/:id/status</td><td>Change status</td></tr>
+    <tr><td>PUT</td><td>/api/registrations/:id/attendance</td><td>Mark/unmark per-day attendance</td></tr>
     <tr><td>PUT</td><td>/api/registrations/:id/service</td><td>Assign to service</td></tr>
     <tr><td>PUT</td><td>/api/registrations/bulk-assign</td><td>Bulk assign</td></tr>
     <tr><td>POST</td><td>/api/devotees</td><td>Create devotee</td></tr>
     <tr><td>GET</td><td>/api/stats/dashboard</td><td>Dashboard stats</td></tr>
+    <tr><td>GET</td><td>/api/stats/events</td><td>Event list for the attendance screen</td></tr>
     <tr><td>GET</td><td>/api/stats/report</td><td>CSV export data</td></tr>
   </table>
 </section>
