@@ -89,6 +89,7 @@ const registrationSchema = new Schema<IRegistration>(
 
 registrationSchema.index({ eventId: 1, volunteerId: 1 }, { unique: true });
 registrationSchema.index({ eventId: 1, status: 1 });
+registrationSchema.index({ eventId: 1, createdAt: -1 });
 registrationSchema.index({ volunteerId: 1 });
 
 if (mongoose.models.registration) {

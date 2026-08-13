@@ -22,7 +22,10 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const [registrations, total] = await Promise.all([
       Registration.find(filter)
-        .populate("volunteerId")
+        .populate(
+          "volunteerId",
+          "_id name phone age gender locality occupation skills photoKey notes createdAt"
+        )
         .populate("serviceId", "name")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)

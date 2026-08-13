@@ -221,5 +221,3 @@ Volunteers can never change their own status. The mobile app only **reads** this
 | `GET /api/events/public/:eventId` | Event details + custom fields + slots for the registration form |
 | `GET /api/events/public/:eventId/time-slots` | The availability slots to send back as `serviceAvailability` |
 | `POST /api/upload/photo` | Upload the volunteer photo → returns `photoKey` |
-| `GET /api/events/public/:eventId/check-in` | Venue attendance lookup (see `CHECK-IN-API.md`) |
-| `POST /api/events/public/:eventId/check-in` | Venue attendance confirm (see `CHECK-IN-API.md`) |

@@ -60,7 +60,12 @@ export async function GET(req: NextRequest) {
       new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
       { expiresIn: 3600 }
     );
-    return NextResponse.redirect(url, { status: 302 });
+    const res = NextResponse.redirect(url, { status: 302 });
+    res.headers.set(
+      "Cache-Control",
+      "public, max-age=3000"
+    );
+    return res;
   } catch (err: unknown) {
     const e = err as { message?: string };
     return NextResponse.json(
