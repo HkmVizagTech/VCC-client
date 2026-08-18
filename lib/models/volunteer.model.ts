@@ -19,6 +19,7 @@ export type VolunteerSkill = (typeof VOLUNTEER_SKILLS)[number];
 export interface IVolunteer extends Document {
   name: string;
   phone: string;
+  dateOfBirth?: Date;
   age?: number;
   gender?: "male" | "female" | "other";
   locality?: string;
@@ -37,6 +38,7 @@ const volunteerSchema = new Schema<IVolunteer>(
   {
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true },
+    dateOfBirth: { type: Date },
     age: Number,
     gender: { type: String, enum: ["male", "female", "other"] },
     locality: { type: String, trim: true },

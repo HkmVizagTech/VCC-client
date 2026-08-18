@@ -181,6 +181,32 @@ export default function ReportsPage() {
     toast.success(`Exported ${registrations.length} records`);
   };
 
+  // Seva Pass bulk-import expects headers: Name, Phone Number.
+  // Only volunteers who actually attended are eligible for a QR pass.
+  const handleSevaPassDownload = () => {
+    const attended = registrations.filter((r) => r.status === "attended");
+    if (attended.length === 0) {
+      toast.error("No attended volunteers to export");
+      return;
+    }
+
+    const header = ["Name", "Phone Number"];
+    const rows = attended.map((r) => [
+      r.volunteerId?.name ?? "",
+      r.volunteerId?.phone ?? "",
+    ]);
+
+    const eventName =
+      selectedEvent && selectedEvent !== "__all"
+        ? events.find((e) => e._id === selectedEvent)?.name ?? "event"
+        : "all-events";
+    const safeName = eventName.replace(/[^a-zA-Z0-9-_]/g, "_").toLowerCase();
+    const dateStr = format(new Date(), "yyyy-MM-dd");
+
+    downloadCSV([header, ...rows], `seva-pass-attended-${safeName}-${dateStr}.csv`);
+    toast.success(`Exported ${attended.length} attended volunteers for Seva Pass`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -230,6 +256,14 @@ export default function ReportsPage() {
         >
           <Download className="mr-2 h-4 w-4" />
           Download CSV
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleSevaPassDownload}
+          disabled={loading || registrations.length === 0}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Export Attended for Seva Pass
         </Button>
         <span className="text-sm text-muted-foreground">
           {registrations.length} record{registrations.length !== 1 ? "s" : ""}

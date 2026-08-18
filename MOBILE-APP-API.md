@@ -1,19 +1,102 @@
-# VCC Mobile API — Register & My Seva (2 core calls)
+# VCC Mobile API — User Module, Register & My Seva
 
 **System:** Volunteer Care Cell (VCC) — Hare Krishna Movement Visakhapatnam
 **Audience:** Mobile app developers and the harekrishnavizag.org website team.
 **Base URLs:** Production `https://vcc-client.vercel.app` · Local `http://localhost:3000`
 
-> These are the **two core calls** every volunteer interaction depends on. Both are **public** (no login, no token) and both are CORS-enabled for `https://harekrishnavizag.org` and `https://www.harekrishnavizag.org`.
+> All endpoints below are **public** (no login, no token) and CORS-enabled for `https://harekrishnavizag.org` and `https://www.harekrishnavizag.org`.
 
-1. **Register** — a volunteer signs up for an event (from the mobile app **or** the harekrishnavizag.org website).
-2. **My Seva** — a volunteer looks up their profile and assigned seva by phone number.
+## User Module
+
+The **user module** is the shared identity contract between the mobile app and VCC. A user is identified by these three fields:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `name` | string | Yes | Full name |
+| `phone_number` | string | Yes | 10-digit Indian mobile number (the unique identity) |
+| `date_of_birth` | string (ISO date) | No | Format: `YYYY-MM-DD` (e.g. `"1998-03-15"`) |
 
 > The phone number is the volunteer's **identity**. A volunteer who registers from the mobile app is the *same person* in the admin panel as one who registered on the website — the phone number matches them up.
 
+The three core calls:
+
+1. **Sync User** — create or look up a user when they open the mobile app.
+2. **Register** — a volunteer signs up for an event.
+3. **My Seva** — a volunteer looks up their profile and assigned seva by phone number.
+
 ---
 
-## Call 1 — Register a volunteer for an event
+## Call 1 — Sync User (create or look up)
+
+| | |
+|---|---|
+| **Method** | `POST` |
+| **Endpoint** | `/api/volunteers/sync` |
+| **Auth** | None (public) |
+
+Call this when the user opens the mobile app or signs up. It creates the user if new, or returns the existing profile if the phone is already known. Safe to call every time — it's an upsert.
+
+**Request body (JSON):**
+```json
+{
+  "name": "Rama Das",
+  "phone_number": "9876543210",
+  "date_of_birth": "1998-03-15"
+}
+```
+
+> Also accepts `phone` instead of `phone_number`, and `dateOfBirth` instead of `date_of_birth`.
+
+**Required fields:** `name`, `phone_number` — `date_of_birth` is optional but recommended.
+
+| Field | Rules |
+|-------|-------|
+| `phone_number` | Any Indian number. Non-digits are stripped and only the **last 10 digits** are kept. Invalid → `400 "Phone number must be exactly 10 digits"`. |
+| `date_of_birth` | ISO date string `YYYY-MM-DD`. Stored once — if the user already has a DOB on file, it won't be overwritten. |
+
+**Response (201 — new user created):**
+```json
+{
+  "message": "User created",
+  "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
+    "name": "Rama Das",
+    "phone": "9876543210",
+    "dateOfBirth": "1998-03-15T00:00:00.000Z",
+    "photoKey": null
+  }
+}
+```
+
+**Response (200 — existing user found):**
+```json
+{
+  "message": "User found",
+  "volunteer": {
+    "_id": "6a796695123edd9fb32a061a",
+    "name": "Rama Das",
+    "phone": "9876543210",
+    "dateOfBirth": "1998-03-15T00:00:00.000Z",
+    "photoKey": "volunteers/1725182601234-ab12cd.jpg"
+  }
+}
+```
+
+**How to use it in the app:**
+- Call this on app launch / signup to get or create the user's VCC profile.
+- Store the returned `_id` locally — it's the volunteer's permanent ID.
+- The `name` is updated if it differs from what's on file (e.g. user changed their name in the mobile app).
+
+**Possible errors:**
+
+| Status | Message | App should show |
+|--------|---------|----------------|
+| `400` | `Name is required` | Fix the name field |
+| `400` | `Phone number must be exactly 10 digits` | Fix phone input |
+
+---
+
+## Call 2 — Register a volunteer for an event
 
 | | |
 |---|---|
@@ -32,6 +115,7 @@
 {
   "name": "Rama Das",
   "phone": "9876543210",
+  "date_of_birth": "1998-03-15",
   "age": 28,
   "gender": "male",
   "locality": "Dwaraka Nagar",
@@ -51,6 +135,7 @@
 | Field | Rules |
 |-------|-------|
 | `phone` | Any Indian number. Non-digits are stripped and only the **last 10 digits** are kept. Invalid → `400 "Phone number must be exactly 10 digits"`. |
+| `date_of_birth` | ISO date `YYYY-MM-DD`. Saved only for new volunteers (use sync to update existing). Also accepts `dateOfBirth`. |
 | `gender` | `male` \| `female` \| `other` |
 | `occupationType` | `student` \| `working` (use `institution` for students, `company` for working) |
 | `skills` | `medical`, `photography`, `videography`, `driving`, `electrical`, `sound`, `it`, `graphic_design`, `cooking`, `crowd_management`, `other` |
@@ -83,6 +168,7 @@ curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
     "_id": "6a796695123edd9fb32a061a",
     "name": "Rama Das",
     "phone": "9876543210",
+    "dateOfBirth": "1998-03-15T00:00:00.000Z",
     "photoKey": "volunteers/1725182601234-ab12cd.jpg"
   }
 }
@@ -105,7 +191,7 @@ curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
 
 ---
 
-## Call 2 — My Seva (profile + assignments by phone)
+## Call 3 — My Seva (profile + assignments by phone)
 
 | | |
 |---|---|
@@ -127,6 +213,7 @@ curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210
     "_id": "6a796695123edd9fb32a061a",
     "name": "Rama Das",
     "phone": "9876543210",
+    "dateOfBirth": "1998-03-15T00:00:00.000Z",
     "photoKey": "volunteers/1725182601234-ab12cd.jpg"
   },
   "registrations": [
@@ -169,7 +256,7 @@ curl https://vcc-client.vercel.app/api/volunteers/by-phone/9876543210
 
 ---
 
-## Call 3 (supporting) — Fetch event time slots (availability picker)
+## Call 4 (supporting) — Fetch event time slots (availability picker)
 
 | | |
 |---|---|
@@ -217,6 +304,7 @@ Volunteers can never change their own status. The mobile app only **reads** this
 
 | Endpoint | Purpose |
 |----------|---------|
+| `POST /api/volunteers/sync` | Create or look up user (the user module entry point) |
 | `GET /api/events/public` | List events a volunteer can register for |
 | `GET /api/events/public/:eventId` | Event details + custom fields + slots for the registration form |
 | `GET /api/events/public/:eventId/time-slots` | The availability slots to send back as `serviceAvailability` |

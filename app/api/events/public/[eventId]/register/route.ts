@@ -28,6 +28,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       notes,
     } = body;
 
+    const dateOfBirth = body.dateOfBirth || body.date_of_birth;
+
     if (!name) {
       return NextResponse.json(
         { message: "Name is required" },
@@ -81,6 +83,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       volunteer = await Volunteer.create({
         name,
         phone: phoneResult.phone,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         age,
         gender,
         locality,
@@ -110,6 +113,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             _id: volunteer._id,
             name: volunteer.name,
             phone: volunteer.phone,
+            dateOfBirth: volunteer.dateOfBirth || null,
             photoKey: volunteer.photoKey,
           },
         },
@@ -133,6 +137,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           _id: volunteer._id,
           name: volunteer.name,
           phone: volunteer.phone,
+          dateOfBirth: volunteer.dateOfBirth || null,
           photoKey: volunteer.photoKey,
         },
       },
