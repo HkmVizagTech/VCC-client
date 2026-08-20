@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
-import { Registration } from "@/lib/models";
+import { Registration, Service, Volunteer, Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
+import { syncAssignSeva } from "@/lib/community-sync";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -41,6 +42,27 @@ export async function PUT(req: NextRequest) {
         },
       ]
     );
+
+    if (result.modifiedCount > 0) {
+      const [service, regs] = await Promise.all([
+        Service.findById(serviceId, "name eventId"),
+        Registration.find(
+          { _id: { $in: objectIds } },
+          "volunteerId eventId"
+        ).populate("volunteerId", "phone"),
+      ]);
+      if (service) {
+        const event = await Event.findById(service.eventId, "eventId");
+        if (event) {
+          for (const reg of regs) {
+            const vol = reg.volunteerId as unknown as { phone?: string };
+            if (vol?.phone) {
+              syncAssignSeva(event.eventId, service.name, vol.phone);
+            }
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
       message: `${result.modifiedCount} registrations updated`,

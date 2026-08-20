@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { Registration } from "@/lib/models";
+import { Registration, Service, Volunteer, Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
+import { syncAssignSeva } from "@/lib/community-sync";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
       registration.status = "assigned";
     }
     await registration.save();
+
+    if (serviceId) {
+      const [service, volunteer, event] = await Promise.all([
+        Service.findById(serviceId, "name"),
+        Volunteer.findById(registration.volunteerId, "phone"),
+        Event.findById(registration.eventId, "eventId"),
+      ]);
+      if (service && volunteer && event) {
+        syncAssignSeva(event.eventId, service.name, volunteer.phone);
+      }
+    }
 
     return NextResponse.json({
       message: "Service assigned",

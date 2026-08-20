@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { Registration } from "@/lib/models";
+import { Registration, Volunteer, Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 import { dateInEventRange } from "@/lib/utils/event-days";
+import { syncMarkAttendance } from "@/lib/community-sync";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -88,6 +89,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
       }
       await registration.save();
 
+      if (wasAttended) {
+        const [volunteer, event] = await Promise.all([
+          Volunteer.findById(registration.volunteerId, "phone"),
+          Event.findById(registration.eventId, "eventId"),
+        ]);
+        if (volunteer && event) {
+          syncMarkAttendance(event.eventId, volunteer.phone, false);
+        }
+      }
+
       return NextResponse.json({
         message: "Attendance record removed",
         registration,
@@ -110,6 +121,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
       registration.status = "attended";
     }
     await registration.save();
+
+    const [volunteer, evt] = await Promise.all([
+      Volunteer.findById(registration.volunteerId, "phone"),
+      Event.findById(registration.eventId, "eventId"),
+    ]);
+    if (volunteer && evt) {
+      syncMarkAttendance(evt.eventId, volunteer.phone, status === "attended");
+    }
 
     return NextResponse.json({
       message: status === "attended" ? "Checked in" : "Marked as no show",

@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
 import { validatePhone } from "@/lib/utils/phone";
 import { eventDayKeys, dateInEventRange, todayKey } from "@/lib/utils/event-days";
+import { syncMarkAttendance } from "@/lib/community-sync";
 
 type Params = { params: Promise<{ eventId: string }> };
 
@@ -215,6 +216,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         registration.status = "attended";
       }
       await registration.save();
+
+      syncMarkAttendance(eventId.toUpperCase(), volunteer.phone, true);
     }
 
     const service = registration.serviceId as unknown as
