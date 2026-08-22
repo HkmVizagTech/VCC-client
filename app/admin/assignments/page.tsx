@@ -25,9 +25,9 @@ import {
 } from "@/components/ui/table";
 import {
   serviceAvailabilitySummary,
-  slotsAreDateSpecific,
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
+import type { IDaySlots } from "@/lib/models/event.model";
 import { toast } from "sonner";
 import {
   ClipboardList,
@@ -88,7 +88,7 @@ interface EventOption {
   date?: string;
   eventStart?: string;
   eventEnd?: string;
-  availabilitySlots?: string[];
+  availabilitySlots?: IDaySlots[];
 }
 
 export default function AssignmentsPage() {
@@ -194,10 +194,16 @@ export default function AssignmentsPage() {
     });
   }, [selectedEvent]);
 
-  const dateSpecific = useMemo(
-    () => slotsAreDateSpecific(selectedEvent?.availabilitySlots || []),
-    [selectedEvent]
-  );
+  const allSlotLabels = useMemo(() => {
+    const labels: string[] = [];
+    for (const day of selectedEvent?.availabilitySlots || []) {
+      for (const s of day.slots) {
+        const label = s.label || `${s.startTime}–${s.endTime}`;
+        if (!labels.includes(label)) labels.push(label);
+      }
+    }
+    return labels;
+  }, [selectedEvent]);
 
   const unassigned = useMemo(() => {
     return registrations.filter(
@@ -213,18 +219,12 @@ export default function AssignmentsPage() {
       if (availDate || availSlot) {
         const entries = r.serviceAvailability || [];
         if (!entries.length) return false;
-        if (dateSpecific) {
-          if (availSlot && !entries.some((e) => e.timeSlot === availSlot)) {
-            return false;
-          }
-        } else {
-          const match = entries.some(
-            (e) =>
-              (!availDate || e.date === availDate) &&
-              (!availSlot || e.timeSlot === availSlot)
-          );
-          if (!match) return false;
-        }
+        const match = entries.some(
+          (e) =>
+            (!availDate || e.date === availDate) &&
+            (!availSlot || `${e.startTime}–${e.endTime}` === availSlot)
+        );
+        if (!match) return false;
       }
       if (!q) return true;
       const vol = r.volunteerId;
@@ -236,7 +236,7 @@ export default function AssignmentsPage() {
         (vol.skills || []).some((s) => s.toLowerCase().includes(q))
       );
     });
-  }, [unassigned, search, availDate, availSlot, dateSpecific]);
+  }, [unassigned, search, availDate, availSlot]);
 
   const assignedByService = useMemo(() => {
     const map = new Map<string, Registration[]>();
@@ -438,36 +438,30 @@ export default function AssignmentsPage() {
             </div>
 
             {/* Availability filter */}
-            {eventDays.length > 0 &&
-              (selectedEvent?.availabilitySlots || []).length > 0 && (
+            {(selectedEvent?.availabilitySlots || []).length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-muted-foreground">
                     Available:
                   </span>
-                  {!dateSpecific && (
-                    <Select
-                      value={availDate || null}
-                      onValueChange={(v) => {
-                        if (v && v !== "__all") setAvailDate(v);
-                        else setAvailDate("");
-                      }}
-                    >
-                      <SelectTrigger className="w-44">
-                        <SelectValue placeholder="Any day" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all">Any day</SelectItem>
-                        {eventDays.map((d) => (
-                          <SelectItem
-                            key={format(d, "yyyy-MM-dd")}
-                            value={format(d, "yyyy-MM-dd")}
-                          >
-                            {format(d, "EEE, MMM d")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select
+                    value={availDate || null}
+                    onValueChange={(v) => {
+                      if (v && v !== "__all") setAvailDate(v);
+                      else setAvailDate("");
+                    }}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Any day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">Any day</SelectItem>
+                      {(selectedEvent?.availabilitySlots || []).map((day) => (
+                        <SelectItem key={day.date} value={day.date}>
+                          {format(new Date(`${day.date}T00:00:00`), "EEE, MMM d")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select
                     value={availSlot || null}
                     onValueChange={(v) => {
@@ -480,9 +474,9 @@ export default function AssignmentsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all">Any time slot</SelectItem>
-                      {(selectedEvent?.availabilitySlots || []).map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
+                      {allSlotLabels.map((label) => (
+                        <SelectItem key={label} value={label}>
+                          {label}
                         </SelectItem>
                       ))}
                     </SelectContent>

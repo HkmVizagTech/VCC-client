@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
+import type { IDaySlots } from "@/lib/models/event.model";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,7 +100,7 @@ interface EventDetail {
   venue?: string;
   eventStart: string;
   eventEnd: string;
-  availabilitySlots?: string[];
+  availabilitySlots?: IDaySlots[];
   customFields?: CustomFieldDef[];
   status: string;
 }

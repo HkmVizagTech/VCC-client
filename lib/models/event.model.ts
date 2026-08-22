@@ -37,6 +37,17 @@ export interface ICustomField {
   helpText?: string;
 }
 
+export interface ITimeSlot {
+  startTime: string;
+  endTime: string;
+  label?: string;
+}
+
+export interface IDaySlots {
+  date: string;
+  slots: ITimeSlot[];
+}
+
 export interface IEvent extends Document {
   eventId: string;
   name: string;
@@ -47,7 +58,7 @@ export interface IEvent extends Document {
   registrationEnd?: Date;
   eventStart: Date;
   eventEnd: Date;
-  availabilitySlots?: string[];
+  availabilitySlots?: IDaySlots[];
   customFields?: ICustomField[];
   photoRequired?: boolean;
   status: EventStatus;
@@ -88,7 +99,20 @@ const eventSchema = new Schema<IEvent>(
     registrationEnd: Date,
     eventStart: { type: Date, required: true },
     eventEnd: { type: Date, required: true },
-    availabilitySlots: [{ type: String, trim: true }],
+    availabilitySlots: [
+      {
+        _id: false,
+        date: { type: String, required: true },
+        slots: [
+          {
+            _id: false,
+            startTime: { type: String, required: true },
+            endTime: { type: String, required: true },
+            label: { type: String, trim: true },
+          },
+        ],
+      },
+    ],
     customFields: [customFieldSchema],
     photoRequired: { type: Boolean, default: false },
     status: {

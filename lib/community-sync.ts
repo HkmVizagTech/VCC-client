@@ -21,13 +21,14 @@ async function post(endpoint: string, body: Record<string, string>) {
 export function syncAssignSeva(
   eventId: string,
   serviceName: string,
-  volunteerPhone: string
+  volunteerPhone: string,
+  devoteePhone?: string
 ) {
   post("assign-seva", {
     service_name: serviceName,
     event_id: eventId,
     volunteer_mobile_number: volunteerPhone,
-    devotee_mobile_number: volunteerPhone,
+    devotee_mobile_number: devoteePhone || volunteerPhone,
   });
 }
 

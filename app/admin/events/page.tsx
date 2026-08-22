@@ -48,6 +48,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAuth } from "@/contexts/AuthContext";
+import { eachDayOfInterval } from "date-fns";
+import type { IDaySlots, ITimeSlot } from "@/lib/models/event.model";
 
 const EVENT_STATUSES = [
   "draft",
@@ -85,7 +87,7 @@ interface EventItem {
   eventEnd: string;
   registrationStart?: string;
   registrationEnd?: string;
-  availabilitySlots?: string[];
+  availabilitySlots?: IDaySlots[];
   customFields?: CustomFieldDef[];
   status: string;
   coordinatorId?: Coordinator | null;
@@ -101,7 +103,7 @@ interface EventFormPayload {
   registrationEnd?: string;
   eventStart: string;
   eventEnd: string;
-  availabilitySlots: string[];
+  availabilitySlots: IDaySlots[];
   customFields: CustomFieldDef[];
   coordinatorId: string;
   photoRequired: boolean;
@@ -120,7 +122,7 @@ const emptyForm = {
   eventStart: "",
   eventEnd: "",
   coordinatorId: "",
-  availabilitySlots: [] as string[],
+  availabilitySlots: [] as IDaySlots[],
   customFields: [] as CustomFieldDef[],
   photoRequired: false,
 };
@@ -234,7 +236,12 @@ export default function EventsPage() {
         registrationEnd: form.registrationEnd || undefined,
         eventStart: form.eventStart,
         eventEnd: form.eventEnd,
-        availabilitySlots: form.availabilitySlots.filter((s) => s.trim()),
+        availabilitySlots: form.availabilitySlots
+          .map((day) => ({
+            ...day,
+            slots: day.slots.filter((s) => s.startTime && s.endTime),
+          }))
+          .filter((day) => day.slots.length > 0),
         customFields: cleanedFields,
         coordinatorId: form.coordinatorId,
         photoRequired: form.photoRequired,
@@ -556,52 +563,134 @@ export default function EventsPage() {
               <div className="space-y-2">
                 <Label>Availability Time Slots</Label>
                 <p className="text-xs text-muted-foreground">
-                  Time slot options volunteers will choose from for each day of
-                  the event.
+                  Set time slot options for each day of the event. Volunteers
+                  will pick which slots they are available for.
                 </p>
-                <div className="space-y-2">
-                  {form.availabilitySlots.map((slot, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input
-                        value={slot}
-                        onChange={(e) => {
-                          const next = [...form.availabilitySlots];
-                          next[idx] = e.target.value;
-                          setForm({ ...form, availabilitySlots: next });
-                        }}
-                        placeholder="e.g. Full Day 9am-9pm"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
+                {form.eventStart && form.eventEnd ? (() => {
+                  const days = eachDayOfInterval({
+                    start: new Date(form.eventStart),
+                    end: new Date(form.eventEnd),
+                  });
+                  return (
+                    <div className="space-y-3">
+                      {days.map((day) => {
+                        const dateKey = format(day, "yyyy-MM-dd");
+                        const dayEntry = form.availabilitySlots.find(
+                          (d) => d.date === dateKey
+                        );
+                        const slots = dayEntry?.slots || [];
+
+                        const updateDaySlots = (newSlots: ITimeSlot[]) => {
                           const next = form.availabilitySlots.filter(
-                            (_, i) => i !== idx
+                            (d) => d.date !== dateKey
                           );
+                          if (newSlots.length > 0) {
+                            next.push({ date: dateKey, slots: newSlots });
+                          }
+                          next.sort((a, b) => a.date.localeCompare(b.date));
                           setForm({ ...form, availabilitySlots: next });
-                        }}
-                        title="Remove slot"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                        };
+
+                        return (
+                          <div
+                            key={dateKey}
+                            className="rounded-md border p-3 space-y-2"
+                          >
+                            <p className="text-sm font-medium">
+                              {format(day, "EEEE, MMMM d")}
+                            </p>
+                            {slots.map((slot, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2"
+                              >
+                                <Input
+                                  type="time"
+                                  value={slot.startTime}
+                                  onChange={(e) => {
+                                    const next = [...slots];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      startTime: e.target.value,
+                                    };
+                                    updateDaySlots(next);
+                                  }}
+                                  className="w-28"
+                                />
+                                <span className="text-muted-foreground text-xs">
+                                  to
+                                </span>
+                                <Input
+                                  type="time"
+                                  value={slot.endTime}
+                                  onChange={(e) => {
+                                    const next = [...slots];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      endTime: e.target.value,
+                                    };
+                                    updateDaySlots(next);
+                                  }}
+                                  className="w-28"
+                                />
+                                <Input
+                                  value={slot.label || ""}
+                                  onChange={(e) => {
+                                    const next = [...slots];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      label: e.target.value,
+                                    };
+                                    updateDaySlots(next);
+                                  }}
+                                  placeholder="Label (optional)"
+                                  className="flex-1"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    updateDaySlots(
+                                      slots.filter((_, i) => i !== idx)
+                                    )
+                                  }
+                                  title="Remove slot"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            ))}
+                            {slots.length < 4 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  updateDaySlots([
+                                    ...slots,
+                                    {
+                                      startTime: "",
+                                      endTime: "",
+                                      label: "",
+                                    },
+                                  ])
+                                }
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add time slot
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        availabilitySlots: [...form.availabilitySlots, ""],
-                      })
-                    }
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add time slot
-                  </Button>
-                </div>
+                  );
+                })() : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Set event start and end dates first to configure time slots.
+                  </p>
+                )}
               </div>
               <div className="border-t pt-4 space-y-4">
                 <label className="flex items-center gap-2.5 cursor-pointer text-sm">

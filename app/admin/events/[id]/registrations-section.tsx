@@ -32,9 +32,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ServiceAvailabilityPicker,
   serviceAvailabilitySummary,
-  slotsAreDateSpecific,
   type ServiceAvailabilityEntry,
 } from "@/components/service-availability-picker";
+import type { IDaySlots } from "@/lib/models/event.model";
 import {
   CustomFieldsRenderer,
   type CustomFieldAnswers,
@@ -133,7 +133,7 @@ export function RegistrationsSection({
   eventId: string;
   services: ServiceOption[];
   canManage: boolean;
-  availabilitySlots: string[];
+  availabilitySlots: IDaySlots[];
   customFields?: CustomFieldDef[];
   eventStart?: string;
   eventEnd?: string;
@@ -182,28 +182,29 @@ export function RegistrationsSection({
     });
   }, [eventStart, eventEnd]);
 
-  const dateSpecific = useMemo(
-    () => slotsAreDateSpecific(availabilitySlots),
-    [availabilitySlots]
-  );
+  const allSlotLabels = useMemo(() => {
+    const labels: string[] = [];
+    for (const day of availabilitySlots) {
+      for (const s of day.slots) {
+        const label = s.label || `${s.startTime}–${s.endTime}`;
+        if (!labels.includes(label)) labels.push(label);
+      }
+    }
+    return labels;
+  }, [availabilitySlots]);
 
   const filteredRegistrations = useMemo(() => {
     if (!availDate && !availSlot) return registrations;
     return registrations.filter((r) => {
       const entries = r.serviceAvailability || [];
       if (!entries.length) return false;
-      if (dateSpecific) {
-        return availSlot
-          ? entries.some((e) => e.timeSlot === availSlot)
-          : true;
-      }
       return entries.some(
         (e) =>
           (!availDate || e.date === availDate) &&
-          (!availSlot || e.timeSlot === availSlot)
+          (!availSlot || `${e.startTime}–${e.endTime}` === availSlot)
       );
     });
-  }, [registrations, availDate, availSlot, dateSpecific]);
+  }, [registrations, availDate, availSlot]);
 
   const changeStatus = async (id: string, status: string) => {
     setChangingId(id);
@@ -443,11 +444,9 @@ export function RegistrationsSection({
                       disabled={submitting}
                     />
                   </div>
-                  {availabilitySlots.length > 0 && eventStart && eventEnd && (
+                  {availabilitySlots.length > 0 && (
                     <ServiceAvailabilityPicker
-                      start={new Date(eventStart)}
-                      end={new Date(eventEnd)}
-                      slots={availabilitySlots}
+                      daySlots={availabilitySlots}
                       value={form.serviceAvailability}
                       onChange={(serviceAvailability) =>
                         setForm({ ...form, serviceAvailability })
@@ -505,35 +504,30 @@ export function RegistrationsSection({
         </div>
       </div>
 
-      {eventDays.length > 0 && availabilitySlots.length > 0 && (
+      {availabilitySlots.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">
             Available:
           </span>
-          {!dateSpecific && (
-            <Select
-              value={availDate || null}
-              onValueChange={(v) => {
-                if (v && v !== "__all") setAvailDate(v);
-                else setAvailDate("");
-              }}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Any day" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">Any day</SelectItem>
-                {eventDays.map((d) => (
-                  <SelectItem
-                    key={format(d, "yyyy-MM-dd")}
-                    value={format(d, "yyyy-MM-dd")}
-                  >
-                    {format(d, "EEE, MMM d")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <Select
+            value={availDate || null}
+            onValueChange={(v) => {
+              if (v && v !== "__all") setAvailDate(v);
+              else setAvailDate("");
+            }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Any day" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Any day</SelectItem>
+              {availabilitySlots.map((day) => (
+                <SelectItem key={day.date} value={day.date}>
+                  {format(new Date(`${day.date}T00:00:00`), "EEE, MMM d")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={availSlot || null}
             onValueChange={(v) => {
@@ -546,9 +540,9 @@ export function RegistrationsSection({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Any time slot</SelectItem>
-              {availabilitySlots.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
+              {allSlotLabels.map((label) => (
+                <SelectItem key={label} value={label}>
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -565,12 +559,9 @@ export function RegistrationsSection({
               Clear
             </Button>
           )}
-          {availSlot && (
+          {(availDate || availSlot) && (
             <span className="text-sm text-muted-foreground">
               {filteredRegistrations.length} available
-              {dateSpecific
-                ? ` in ${availSlot}`
-                : ` on ${format(new Date(`${availDate}T00:00:00`), "EEE, MMM d")} · ${availSlot}`}
             </span>
           )}
         </div>

@@ -35,7 +35,8 @@ interface CustomAnswer {
 
 interface ServiceAvailabilityEntry {
   date: string;
-  timeSlot: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface RegistrationRecord {
@@ -290,7 +291,7 @@ export function VolunteerDetailsDialog({
                             <div className="flex flex-wrap gap-1">
                               {reg.serviceAvailability.map((a, i) => (
                                 <Badge key={i} variant="secondary" className="text-xs font-normal">
-                                  {a.date ? `${format(new Date(`${a.date}T00:00:00`), "EEE, MMM d")} · ` : ""}{a.timeSlot}
+                                  {a.date ? `${format(new Date(`${a.date}T00:00:00`), "EEE, MMM d")} · ` : ""}{a.startTime}–{a.endTime}
                                 </Badge>
                               ))}
                             </div>

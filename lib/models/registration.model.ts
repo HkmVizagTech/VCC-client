@@ -12,7 +12,8 @@ export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
 export interface ServiceAvailabilityEntry {
   date: string;
-  timeSlot: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface DayAttendance {
@@ -60,8 +61,9 @@ const registrationSchema = new Schema<IRegistration>(
     serviceAvailability: [
       {
         _id: false,
-        date: { type: String, default: "" },
-        timeSlot: { type: String, required: true },
+        date: { type: String, required: true },
+        startTime: { type: String, required: true },
+        endTime: { type: String, required: true },
       },
     ],
     dayAttendance: [

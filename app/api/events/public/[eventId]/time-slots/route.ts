@@ -26,7 +26,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       name: event.name,
       eventStart: event.eventStart,
       eventEnd: event.eventEnd,
-      timeSlots: event.availabilitySlots || [],
+      timeSlots: (event.availabilitySlots || []).map((day: any) => ({
+        date: day.date,
+        slots: (day.slots || []).map((s: any) => ({
+          startTime: s.startTime,
+          endTime: s.endTime,
+          label: s.label || `${s.startTime} - ${s.endTime}`,
+        })),
+      })),
     });
   } catch (error: any) {
     return NextResponse.json(

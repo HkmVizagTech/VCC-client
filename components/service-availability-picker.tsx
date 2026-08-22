@@ -1,146 +1,119 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { format, eachDayOfInterval } from "date-fns";
+import { format } from "date-fns";
+import type { IDaySlots } from "@/lib/models/event.model";
 
 export interface ServiceAvailabilityEntry {
   date: string;
-  timeSlot: string;
+  startTime: string;
+  endTime: string;
 }
 
-const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
-
-const MONTH_PATTERN =
-  /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
-const ORDINAL_DATE_PATTERN = /\b\d{1,2}(st|nd|rd|th)\b/i;
-
-export function slotsAreDateSpecific(slots: string[]): boolean {
-  return slots.some(
-    (s) => MONTH_PATTERN.test(s) || ORDINAL_DATE_PATTERN.test(s)
-  );
+function slotLabel(s: { startTime: string; endTime: string; label?: string }) {
+  return s.label || `${s.startTime} – ${s.endTime}`;
 }
 
-export function serviceAvailabilitySummary(  entries?: ServiceAvailabilityEntry[]
+export function serviceAvailabilitySummary(
+  entries?: ServiceAvailabilityEntry[]
 ): string {
   if (!entries || entries.length === 0) return "";
   return entries
-    .map((e) =>
-      e.date
-        ? `${format(new Date(`${e.date}T00:00:00`), "MMM d")}: ${e.timeSlot}`
-        : e.timeSlot
-    )
+    .map((e) => {
+      const dateLabel = e.date
+        ? format(new Date(`${e.date}T00:00:00`), "MMM d")
+        : "";
+      const timeLabel = `${e.startTime}–${e.endTime}`;
+      return dateLabel ? `${dateLabel}: ${timeLabel}` : timeLabel;
+    })
     .join(" · ");
 }
 
 export function availableOn(
   entries: ServiceAvailabilityEntry[] | undefined,
   date: string,
-  timeSlot: string
+  startTime: string,
+  endTime: string
 ): boolean {
   if (!entries || entries.length === 0) return false;
-  return entries.some((e) => e.date === date && e.timeSlot === timeSlot);
+  return entries.some(
+    (e) => e.date === date && e.startTime === startTime && e.endTime === endTime
+  );
 }
 
 export function ServiceAvailabilityPicker({
-  start,
-  end,
-  slots,
+  daySlots,
   value,
   onChange,
 }: {
-  start: Date;
-  end: Date;
-  slots: string[];
+  daySlots: IDaySlots[];
   value: ServiceAvailabilityEntry[];
   onChange: (value: ServiceAvailabilityEntry[]) => void;
 }) {
-  const days = eachDayOfInterval({ start, end });
-  const dateSpecific = slotsAreDateSpecific(slots);
+  const isSelected = (date: string, startTime: string, endTime: string) =>
+    value.some(
+      (e) =>
+        e.date === date && e.startTime === startTime && e.endTime === endTime
+    );
 
-  const selectSlot = (date: string, timeSlot: string) => {
-    const next = value.filter((e) => e.date !== date);
-    next.push({ date, timeSlot });
-    onChange(next);
-  };
-
-  const toggleFlatSlot = (slot: string) => {
-    const exists = value.some((e) => e.timeSlot === slot);
-    if (exists) {
-      onChange(value.filter((e) => e.timeSlot !== slot));
+  const toggleSlot = (date: string, startTime: string, endTime: string) => {
+    if (isSelected(date, startTime, endTime)) {
+      onChange(
+        value.filter(
+          (e) =>
+            !(
+              e.date === date &&
+              e.startTime === startTime &&
+              e.endTime === endTime
+            )
+        )
+      );
     } else {
-      onChange([...value, { date: "", timeSlot: slot }]);
+      onChange([...value, { date, startTime, endTime }]);
     }
   };
 
-  if (slots.length === 0) return null;
-
-  if (dateSpecific) {
-    return (
-      <div className="space-y-2">
-        <Label>Availability</Label>
-        <p className="text-xs text-muted-foreground">
-          Select the slots you are available for.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {slots.map((slot) => {
-            const active = value.some((e) => e.timeSlot === slot);
-            return (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => toggleFlatSlot(slot)}
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  active
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-transparent text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                {slot}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+  if (daySlots.length === 0) return null;
 
   return (
     <div className="space-y-2">
       <Label>Availability</Label>
       <p className="text-xs text-muted-foreground">
-        Select the time slot you are available for each day.
+        Select the time slots you are available for.
       </p>
       <div className="space-y-2">
-        {days.map((day) => {
-          const key = dayKey(day);
-          const selected = value.find((e) => e.date === key)?.timeSlot || "";
-          return (
-            <div key={key} className="rounded-md border p-3">
-              <p className="mb-2 text-sm font-medium">
-                {format(day, "EEEE, MMMM d")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {slots.map((slot) => {
-                  const active = selected === slot;
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => selectSlot(key, slot)}
-                      className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-input bg-transparent text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
-              </div>
+        {daySlots.map((day) => (
+          <div key={day.date} className="rounded-md border p-3">
+            <p className="mb-2 text-sm font-medium">
+              {format(new Date(`${day.date}T00:00:00`), "EEEE, MMMM d")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {day.slots.map((slot) => {
+                const active = isSelected(
+                  day.date,
+                  slot.startTime,
+                  slot.endTime
+                );
+                return (
+                  <button
+                    key={`${slot.startTime}-${slot.endTime}`}
+                    type="button"
+                    onClick={() =>
+                      toggleSlot(day.date, slot.startTime, slot.endTime)
+                    }
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-transparent text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {slotLabel(slot)}
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
