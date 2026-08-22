@@ -839,6 +839,7 @@ export default function EventsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          nativeButton={false}
                           render={
                             <Link
                               href={`/admin/events/${event._id}`}
