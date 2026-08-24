@@ -6,7 +6,11 @@ async function post(endpoint: string, body: Record<string, string>) {
   try {
     const res = await fetch(`${BASE_URL}/${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; ISKCON-SevaPass/1.0; +https://harekrishnavizag.org)",
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
