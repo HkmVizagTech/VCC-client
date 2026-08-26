@@ -102,8 +102,15 @@ const OVERALL_STYLES: Record<string, string> = {
   cancelled: "secondary",
 };
 
-const dayLabel = (day: string) =>
-  format(new Date(`${day}T00:00:00`), "EEE, MMM d");
+// Must never throw. `activeDay` is "" on the render right after an event is
+// picked — the effect that sets it has not run yet — and date-fns `format()`
+// raises RangeError: Invalid time value on `new Date("T00:00:00")`, which
+// escapes render and takes the whole route down with "This page couldn't load".
+const dayLabel = (day: string) => {
+  if (!day) return "";
+  const d = new Date(`${day}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? day : format(d, "EEE, MMM d");
+};
 
 // --- Component ---
 
@@ -476,17 +483,17 @@ export default function AttendancePage() {
           />
           <StatCard
             icon={<CheckCircle className="h-5 w-5 text-green-600" />}
-            label={`Checked In · ${dayLabel(activeDay)}`}
+            label={`Checked In${activeDay ? ` · ${dayLabel(activeDay)}` : ""}`}
             value={stats.checkedIn}
           />
           <StatCard
             icon={<XCircle className="h-5 w-5 text-destructive" />}
-            label={`No Show · ${dayLabel(activeDay)}`}
+            label={`No Show${activeDay ? ` · ${dayLabel(activeDay)}` : ""}`}
             value={stats.noShow}
           />
           <StatCard
             icon={<Clock className="h-5 w-5 text-amber-500" />}
-            label={`Pending · ${dayLabel(activeDay)}`}
+            label={`Pending${activeDay ? ` · ${dayLabel(activeDay)}` : ""}`}
             value={stats.pending}
           />
         </div>
@@ -537,7 +544,7 @@ export default function AttendancePage() {
                   <TableHead>Volunteer</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Service</TableHead>
-                  <TableHead>{dayLabel(activeDay)}</TableHead>
+                  <TableHead>{dayLabel(activeDay) || "Day"}</TableHead>
                   <TableHead>Overall</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
