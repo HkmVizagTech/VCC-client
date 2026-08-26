@@ -87,12 +87,15 @@ async function deliver(endpoint: string, body: Record<string, string>) {
         return;
       }
 
-      // Log successes too, with elapsed ms. Without this there is no way to
-      // tell a sync that worked from one that silently never fired — and the
-      // timing is what exposes delivery problems rather than API problems.
+      // Log successes too, with the FULL payload and elapsed ms.
+      //   - the payload, because "which value did we actually send?" (is_present
+      //     yes vs no, which service_name) is the question that comes up every
+      //     time their side and ours disagree, and a partial log can't answer it
+      //   - the timing, because it separates a delivery problem from an API one
       console.log(
-        `[community-sync] ${endpoint} OK for ${who} → event_id ${body.event_id}` +
-          ` date ${body.date || "-"} in ${Date.now() - startedAt}ms${tag}: ${text.slice(0, 200)}`
+        `[community-sync] ${endpoint} OK for ${who} in ${Date.now() - startedAt}ms${tag}` +
+          `\n  sent: ${JSON.stringify(body)}` +
+          `\n  got:  ${text.slice(0, 200)}`
       );
       return;
     } catch (err) {
