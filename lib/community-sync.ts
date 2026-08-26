@@ -15,10 +15,26 @@
 //      rendered HTML error page instead of a JSON body. Content-Type only
 //      describes what we are SENDING; Accept declares what we want BACK.
 //
+// DELIVERY (why after() and not a bare fire-and-forget call):
+// On Vercel the serverless function is FROZEN the instant the handler returns
+// its response. A promise still in flight is suspended there — it resumes only
+// if that same container happens to be invoked again, which in practice meant
+// syncs landing minutes late, or dying with ECONNRESET when the TLS socket was
+// torn down mid-handshake, or never completing at all. `after()` (Next 15.1+,
+// backed by Vercel's waitUntil) keeps the function alive until the work
+// settles, WITHOUT making the scanner wait for the response.
+//
 // Config: COMMUNITY_APP_API_URL — accepted either as the bare origin
 // (https://harekrishnavizag.co.in) or with the full API path already appended.
 
+import { after } from "next/server";
+
 const API_PATH = "/api/v1/user/festivals";
+
+// Cap a single attempt so a hung request can't hold the function open to its
+// execution limit, and allow one retry for transient socket failures.
+const REQUEST_TIMEOUT_MS = 15_000;
+const RETRY_DELAY_MS = 750;
 
 const BASE_URL = (() => {
   const raw = (process.env.COMMUNITY_APP_API_URL || "https://harekrishnavizag.co.in")
@@ -36,47 +52,77 @@ const COMMON_HEADERS = {
     "Mozilla/5.0 (compatible; ISKCON-SevaPass/1.0; +https://harekrishnavizag.org)",
 };
 
-async function post(endpoint: string, body: Record<string, string>) {
+async function deliver(endpoint: string, body: Record<string, string>) {
   const url = `${BASE_URL}/${endpoint}`;
   const who = body.volunteer_mobile_number || "?";
+  const startedAt = Date.now();
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: COMMON_HEADERS,
-      body: JSON.stringify(body),
-    });
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const tag = attempt === 2 ? " (retry)" : "";
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: COMMON_HEADERS,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
 
-    const text = await res.text().catch(() => "");
-    const contentType = res.headers.get("content-type") || "";
-    const looksHtml =
-      /html/i.test(contentType) || /^\s*<(!doctype|html)/i.test(text);
+      const text = await res.text().catch(() => "");
+      const contentType = res.headers.get("content-type") || "";
+      const looksHtml =
+        /html/i.test(contentType) || /^\s*<(!doctype|html)/i.test(text);
 
-    if (!res.ok || looksHtml) {
-      console.error(
-        `[community-sync] ${endpoint} FAILED for ${who} → HTTP ${res.status}` +
-          (looksHtml
-            ? " — got an HTML page, not JSON (WAF block or unrouted URL)."
-            : "") +
-          `\n  url: ${url}` +
-          `\n  payload: ${JSON.stringify(body)}` +
-          `\n  response: ${text.slice(0, 300)}`
+      if (!res.ok || looksHtml) {
+        // An HTTP-level rejection is their answer, not a glitch — do not retry
+        // it, or a 422 becomes two identical 422s in the log.
+        console.error(
+          `[community-sync] ${endpoint} FAILED for ${who} → HTTP ${res.status}${tag}` +
+            (looksHtml
+              ? " — got an HTML page, not JSON (WAF block or unrouted URL)."
+              : "") +
+            `\n  url: ${url}` +
+            `\n  payload: ${JSON.stringify(body)}` +
+            `\n  response: ${text.slice(0, 300)}`
+        );
+        return;
+      }
+
+      // Log successes too, with elapsed ms. Without this there is no way to
+      // tell a sync that worked from one that silently never fired — and the
+      // timing is what exposes delivery problems rather than API problems.
+      console.log(
+        `[community-sync] ${endpoint} OK for ${who} → event_id ${body.event_id}` +
+          ` date ${body.date || "-"} in ${Date.now() - startedAt}ms${tag}: ${text.slice(0, 200)}`
       );
       return;
+    } catch (err) {
+      // Network/timeout failure. These are the transient ones worth one retry
+      // (ECONNRESET, TLS handshake torn down, DNS blip).
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      if (attempt === 1) {
+        console.warn(
+          `[community-sync] ${endpoint} network error for ${who} — retrying in ${RETRY_DELAY_MS}ms: ${detail}`
+        );
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+      console.error(
+        `[community-sync] ${endpoint} request error for ${who} after 2 attempts: ${detail}` +
+          `\n  url: ${url}\n  payload: ${JSON.stringify(body)}`
+      );
     }
+  }
+}
 
-    // Log successes too. Without this there is no way to distinguish a sync
-    // that worked from one that silently never fired — which is exactly the
-    // ambiguity that made "are you even calling us?" unanswerable.
-    console.log(
-      `[community-sync] ${endpoint} OK for ${who} → event_id ${body.event_id}: ${text.slice(0, 200)}`
-    );
-  } catch (err) {
-    console.error(
-      `[community-sync] ${endpoint} request error for ${who}:`,
-      err,
-      `\n  url: ${url}\n  payload: ${JSON.stringify(body)}`
-    );
+function post(endpoint: string, body: Record<string, string>) {
+  try {
+    // Deferred to after the response is sent, but the runtime keeps the
+    // function alive until it settles. See the DELIVERY note at the top.
+    after(() => deliver(endpoint, body));
+  } catch {
+    // after() throws outside a request scope (scripts, tests). Fall back to a
+    // plain call so those contexts still work.
+    void deliver(endpoint, body);
   }
 }
 
