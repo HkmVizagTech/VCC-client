@@ -217,7 +217,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
       await registration.save();
 
-      syncMarkAttendance(eventId.toUpperCase(), volunteer.phone, true);
+      syncMarkAttendance(eventId.toUpperCase(), volunteer.phone, true, date);
     }
 
     const service = registration.serviceId as unknown as

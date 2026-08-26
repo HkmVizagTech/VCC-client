@@ -95,7 +95,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
           Event.findById(registration.eventId, "eventId"),
         ]);
         if (volunteer && event) {
-          syncMarkAttendance(event.eventId, volunteer.phone, false);
+          syncMarkAttendance(event.eventId, volunteer.phone, false, date);
         }
       }
 
@@ -127,7 +127,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       Event.findById(registration.eventId, "eventId"),
     ]);
     if (volunteer && evt) {
-      syncMarkAttendance(evt.eventId, volunteer.phone, status === "attended");
+      syncMarkAttendance(
+        evt.eventId,
+        volunteer.phone,
+        status === "attended",
+        date
+      );
     }
 
     return NextResponse.json({

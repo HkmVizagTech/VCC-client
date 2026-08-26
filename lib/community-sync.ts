@@ -94,14 +94,22 @@ export function syncAssignSeva(
   });
 }
 
+// `date` is the event day the attendance applies to, as `yyyy-MM-dd`.
+// Their API rejects the call without it ("The date field is required"), and
+// it is meaningful here: VCC tracks attendance per day, so the same volunteer
+// is marked present on several distinct dates across one festival.
+// Required (not optional) on purpose — a missing date must be a compile error,
+// not a 422 discovered in production.
 export function syncMarkAttendance(
   eventId: string,
   volunteerPhone: string,
-  isPresent: boolean
+  isPresent: boolean,
+  date: string
 ) {
   post("mark-attendance", {
     event_id: eventId,
     volunteer_mobile_number: volunteerPhone,
     is_present: isPresent ? "yes" : "no",
+    date,
   });
 }
