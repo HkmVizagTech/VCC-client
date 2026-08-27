@@ -44,7 +44,11 @@ import {
 } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
 import { CheckInQr } from "@/components/check-in-qr";
-import { eventDayKeys, todayKey } from "@/lib/utils/event-days";
+import {
+  eventDayKeys,
+  markableDayKeys,
+  todayKey,
+} from "@/lib/utils/event-days";
 
 // --- Types ---
 
@@ -155,19 +159,31 @@ export default function AttendancePage() {
     [events, selectedEventId]
   );
 
+  // Only days that have actually happened can be marked. Future days are
+  // dropped from the picker entirely so the UI cannot offer something the
+  // server will reject.
   const eventDays = useMemo(
-    () => eventDayKeys(selectedEvent?.eventStart, selectedEvent?.eventEnd),
+    () => markableDayKeys(selectedEvent?.eventStart, selectedEvent?.eventEnd),
     [selectedEvent]
   );
 
-  // Default the day to today when the event is running, else the first day.
+  // How many upcoming days are being hidden, so the admin knows they exist.
+  const upcomingDayCount = useMemo(() => {
+    const all = eventDayKeys(selectedEvent?.eventStart, selectedEvent?.eventEnd);
+    return all.length - eventDays.length;
+  }, [selectedEvent, eventDays]);
+
+  // Default the day to today when the event is running, else the most recent
+  // day that has already happened.
   useEffect(() => {
     if (!selectedEventId || eventDays.length === 0) {
       setActiveDay("");
       return;
     }
     const today = todayKey();
-    setActiveDay(eventDays.includes(today) ? today : eventDays[0]);
+    setActiveDay(
+      eventDays.includes(today) ? today : eventDays[eventDays.length - 1]
+    );
   }, [selectedEventId, eventDays]);
 
   // Fetch services when event changes
@@ -414,6 +430,13 @@ export default function AttendancePage() {
                     {d === todayKey() ? " · Today" : ""}
                   </SelectItem>
                 ))}
+                {upcomingDayCount > 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {upcomingDayCount} upcoming{" "}
+                    {upcomingDayCount === 1 ? "day" : "days"} — available on the
+                    day itself
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -511,9 +534,15 @@ export default function AttendancePage() {
       {selectedEventId && !loadingRegistrations && eventDays.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
           <CalendarDays className="mb-3 h-10 w-10 text-muted-foreground/50" />
-          <p className="font-medium">No attendance days</p>
+          <p className="font-medium">
+            {upcomingDayCount > 0
+              ? "This event hasn't started yet"
+              : "No attendance days"}
+          </p>
           <p className="text-sm text-muted-foreground">
-            This event has no date range configured
+            {upcomingDayCount > 0
+              ? "Attendance can be marked from the first day of the event"
+              : "This event has no date range configured"}
           </p>
         </div>
       )}

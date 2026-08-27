@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Registration, Volunteer, Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
-import { dateInEventRange } from "@/lib/utils/event-days";
+import { dateInEventRange, isFutureDay } from "@/lib/utils/event-days";
 import { syncMarkAttendance } from "@/lib/community-sync";
 
 type Params = { params: Promise<{ id: string }> };
@@ -57,6 +57,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!dateInEventRange(date, event.eventStart, event.eventEnd)) {
       return NextResponse.json(
         { message: "Date is outside the event dates" },
+        { status: 400 }
+      );
+    }
+    // Attendance is a record of what happened, so a future day can never be
+    // marked attended or no-show. `unmark` stays allowed for any date so an
+    // admin can still clear a bad record created before this guard existed.
+    if (status !== "unmark" && isFutureDay(date)) {
+      return NextResponse.json(
+        { message: "Cannot mark attendance for a future date" },
         { status: 400 }
       );
     }

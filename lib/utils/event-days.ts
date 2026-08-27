@@ -55,6 +55,24 @@ export function todayKey(): string {
 }
 
 /**
+ * Whether a `yyyy-MM-dd` key is later than today in IST.
+ * Attendance can be recorded for today or backfilled for a past day, but never
+ * for a day that has not happened yet. ISO keys compare lexicographically.
+ */
+export function isFutureDay(day: string): boolean {
+  if (!day) return false;
+  return day > todayKey();
+}
+
+/** Event days up to and including today — the days attendance may be marked for. */
+export function markableDayKeys(
+  start?: Date | string | null,
+  end?: Date | string | null
+): string[] {
+  return eventDayKeys(start, end).filter((d) => !isFutureDay(d));
+}
+
+/**
  * Whether a `yyyy-MM-dd` key falls within an event's date range.
  * ISO date strings compare lexicographically = chronologically.
  */

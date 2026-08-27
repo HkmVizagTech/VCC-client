@@ -52,7 +52,11 @@ const COMMON_HEADERS = {
     "Mozilla/5.0 (compatible; ISKCON-SevaPass/1.0; +https://harekrishnavizag.org)",
 };
 
-async function deliver(endpoint: string, body: Record<string, string>) {
+/** Returns true only if their API accepted the call. */
+async function deliver(
+  endpoint: string,
+  body: Record<string, string>
+): Promise<boolean> {
   const url = `${BASE_URL}/${endpoint}`;
   const who = body.volunteer_mobile_number || "?";
   const startedAt = Date.now();
@@ -84,7 +88,7 @@ async function deliver(endpoint: string, body: Record<string, string>) {
             `\n  payload: ${JSON.stringify(body)}` +
             `\n  response: ${text.slice(0, 300)}`
         );
-        return;
+        return false;
       }
 
       // Log successes too, with the FULL payload and elapsed ms.
@@ -97,7 +101,7 @@ async function deliver(endpoint: string, body: Record<string, string>) {
           `\n  sent: ${JSON.stringify(body)}` +
           `\n  got:  ${text.slice(0, 200)}`
       );
-      return;
+      return true;
     } catch (err) {
       // Network/timeout failure. These are the transient ones worth one retry
       // (ECONNRESET, TLS handshake torn down, DNS blip).
@@ -115,6 +119,7 @@ async function deliver(endpoint: string, body: Record<string, string>) {
       );
     }
   }
+  return false;
 }
 
 function post(endpoint: string, body: Record<string, string>) {
@@ -129,18 +134,49 @@ function post(endpoint: string, body: Record<string, string>) {
   }
 }
 
+// Single source of truth for the assign-seva payload, so the fire-and-forget
+// path and the awaitable batch path can never drift apart.
+function assignSevaBody(
+  eventId: string,
+  serviceName: string,
+  volunteerPhone: string,
+  devoteePhone?: string
+): Record<string, string> {
+  return {
+    service_name: serviceName,
+    event_id: eventId,
+    volunteer_mobile_number: volunteerPhone,
+    devotee_mobile_number: devoteePhone || volunteerPhone,
+  };
+}
+
 export function syncAssignSeva(
   eventId: string,
   serviceName: string,
   volunteerPhone: string,
   devoteePhone?: string
 ) {
-  post("assign-seva", {
-    service_name: serviceName,
-    event_id: eventId,
-    volunteer_mobile_number: volunteerPhone,
-    devotee_mobile_number: devoteePhone || volunteerPhone,
-  });
+  post("assign-seva", assignSevaBody(eventId, serviceName, volunteerPhone, devoteePhone));
+}
+
+/**
+ * Awaitable assign-seva, for the daily re-sync job.
+ *
+ * The request handlers use the fire-and-forget `syncAssignSeva` because the
+ * user should not wait on a third-party call. The cron job is the opposite:
+ * nobody is waiting, and it needs the per-volunteer outcome to report how many
+ * pushes actually landed.
+ */
+export async function syncAssignSevaNow(
+  eventId: string,
+  serviceName: string,
+  volunteerPhone: string,
+  devoteePhone?: string
+): Promise<boolean> {
+  return deliver(
+    "assign-seva",
+    assignSevaBody(eventId, serviceName, volunteerPhone, devoteePhone)
+  );
 }
 
 // `date` is the event day the attendance applies to, as `yyyy-MM-dd`.

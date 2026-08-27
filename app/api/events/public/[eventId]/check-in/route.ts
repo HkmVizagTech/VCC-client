@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
 import { validatePhone } from "@/lib/utils/phone";
-import { eventDayKeys, dateInEventRange, todayKey } from "@/lib/utils/event-days";
+import {
+  eventDayKeys,
+  dateInEventRange,
+  todayKey,
+  isFutureDay,
+} from "@/lib/utils/event-days";
 import { syncMarkAttendance } from "@/lib/community-sync";
 
 type Params = { params: Promise<{ eventId: string }> };
@@ -179,16 +184,39 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Resolve the day: explicit date, else today if the event is running,
-    // else the first event day.
+    // Resolve the day: explicit date, else today if the event is running.
     let date = typeof body.date === "string" ? body.date : "";
     if (!date) {
       const today = todayKey();
-      date = days.includes(today) ? today : days[0];
+      if (days.includes(today)) {
+        date = today;
+      } else {
+        // Today is outside the event window. Fall back to the most recent day
+        // that has already happened (a late scan after the event finished).
+        // This used to fall back to days[0] unconditionally, which for an event
+        // that had not started yet silently recorded attendance against a
+        // FUTURE date.
+        const past = days.filter((d) => !isFutureDay(d));
+        if (past.length === 0) {
+          return NextResponse.json(
+            { message: `Check-in opens on ${days[0]}` },
+            { status: 400 }
+          );
+        }
+        date = past[past.length - 1];
+      }
     }
     if (!dateInEventRange(date, event.eventStart, event.eventEnd)) {
       return NextResponse.json(
         { message: "Invalid check-in date" },
+        { status: 400 }
+      );
+    }
+    // A volunteer is present or they are not — attendance can never be
+    // recorded for a day that has not happened yet.
+    if (isFutureDay(date)) {
+      return NextResponse.json(
+        { message: "Cannot check in for a future date" },
         { status: 400 }
       );
     }
