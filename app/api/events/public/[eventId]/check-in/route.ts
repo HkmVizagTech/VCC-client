@@ -1,14 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
 import { validatePhone } from "@/lib/utils/phone";
-import {
-  eventDayKeys,
-  dateInEventRange,
-  todayKey,
-  isFutureDay,
-} from "@/lib/utils/event-days";
-import { syncMarkAttendance } from "@/lib/community-sync";
+import { eventDayKeys, todayKey } from "@/lib/utils/event-days";
+import { pushAttendanceAndRecord } from "@/lib/attendance-sync";
 
 type Params = { params: Promise<{ eventId: string }> };
 
@@ -162,8 +157,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 }
 
-// POST /api/events/public/:eventId/check-in — confirm attendance for a day.
-// Body: { phone, date? } — date is a `yyyy-MM-dd` event day (defaults to today).
+// POST /api/events/public/:eventId/check-in — confirm attendance for TODAY.
+// Body: { phone } — `date` is accepted only if it equals today, and is
+// otherwise rejected; volunteers cannot mark any other day.
 // Idempotent per day: checking in for an already-attended day returns the
 // same success shape with alreadyCheckedIn: true.
 export async function POST(req: NextRequest, { params }: Params) {
@@ -184,39 +180,28 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Resolve the day: explicit date, else today if the event is running.
-    let date = typeof body.date === "string" ? body.date : "";
-    if (!date) {
-      const today = todayKey();
-      if (days.includes(today)) {
-        date = today;
-      } else {
-        // Today is outside the event window. Fall back to the most recent day
-        // that has already happened (a late scan after the event finished).
-        // This used to fall back to days[0] unconditionally, which for an event
-        // that had not started yet silently recorded attendance against a
-        // FUTURE date.
-        const past = days.filter((d) => !isFutureDay(d));
-        if (past.length === 0) {
-          return NextResponse.json(
-            { message: `Check-in opens on ${days[0]}` },
-            { status: 400 }
-          );
-        }
-        date = past[past.length - 1];
-      }
-    }
-    if (!dateInEventRange(date, event.eventStart, event.eventEnd)) {
+    // A volunteer scanning at the gate can only ever be marking TODAY. Any
+    // other day — past or future — is an admin correction, and belongs to
+    // PUT /api/registrations/:id/attendance where it is authenticated.
+    //
+    // This replaced a fallback that quietly picked days[0] when today was not
+    // an event day, which is how attendance ended up recorded against a date
+    // the event had not reached yet.
+    const date = todayKey();
+    if (!days.includes(date)) {
+      const upcoming = days.find((d) => d > date);
       return NextResponse.json(
-        { message: "Invalid check-in date" },
+        {
+          message: upcoming
+            ? `Check-in opens on ${upcoming}`
+            : "This event is not running today",
+        },
         { status: 400 }
       );
     }
-    // A volunteer is present or they are not — attendance can never be
-    // recorded for a day that has not happened yet.
-    if (isFutureDay(date)) {
+    if (typeof body.date === "string" && body.date && body.date !== date) {
       return NextResponse.json(
-        { message: "Cannot check in for a future date" },
+        { message: "Volunteers can only check in for today" },
         { status: 400 }
       );
     }
@@ -245,7 +230,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
       await registration.save();
 
-      syncMarkAttendance(eventId.toUpperCase(), volunteer.phone, true, date);
+      // The volunteer is already checked in as far as VCC is concerned — the
+      // push runs after the response so the gate never waits on a third party,
+      // and its outcome is recorded for the admin table either way.
+      const registrationId = String(registration._id);
+      after(() =>
+        pushAttendanceAndRecord({ registrationId, date, isPresent: true })
+      );
     }
 
     const service = registration.serviceId as unknown as

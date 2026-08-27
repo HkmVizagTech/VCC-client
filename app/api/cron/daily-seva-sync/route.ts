@@ -184,7 +184,12 @@ export async function GET(req: NextRequest) {
         .filter((t): t is Task => t !== null);
 
       const { ok, failed } = await runPool(tasks, CONCURRENCY, (t: Task) =>
-        syncAssignSevaNow(event.eventId, t.serviceName, t.phone, t.devoteePhone)
+        syncAssignSevaNow(
+          event.eventId,
+          t.serviceName,
+          t.phone,
+          t.devoteePhone
+        ).then((r) => r.ok)
       );
 
       totalOk += ok;

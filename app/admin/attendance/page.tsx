@@ -41,6 +41,9 @@ import {
   QrCode,
   RotateCcw,
   CalendarDays,
+  Smartphone,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
 import { CheckInQr } from "@/components/check-in-qr";
@@ -79,13 +82,41 @@ interface DayEntry {
   source?: string;
 }
 
+interface AttendanceSync {
+  date: string;
+  isPresent: boolean;
+  status: "pending" | "synced" | "failed";
+  attempts?: number;
+  lastAttemptAt?: string;
+  reason?: string;
+}
+
 interface Registration {
   _id: string;
   status: string;
   volunteerId?: Volunteer;
   serviceId?: { _id: string; name: string } | null;
   dayAttendance?: DayEntry[];
+  attendanceSync?: AttendanceSync | null;
   createdAt: string;
+}
+
+/**
+ * How the community-app push for `day` stands.
+ *
+ * VCC records attendance whether or not the push lands, so "attended in VCC"
+ * and "visible in the app" are two different facts — this is the second one.
+ * `attendanceSync` stores only the LAST push, so a record for a different day
+ * says nothing about this one; that reads as pending rather than synced.
+ */
+type SyncState = "none" | "pending" | "synced" | "failed";
+
+function syncStateFor(reg: Registration, day: string): SyncState {
+  const entry = (reg.dayAttendance || []).find((d) => d.date === day);
+  if (!entry) return "none";
+  const sync = reg.attendanceSync;
+  if (!sync || sync.date !== day) return "pending";
+  return sync.status;
 }
 
 // --- Constants ---
@@ -133,6 +164,7 @@ export default function AttendancePage() {
   const [activeDay, setActiveDay] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
+  const [resyncId, setResyncId] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
 
   // Fetch events on mount
@@ -274,6 +306,29 @@ export default function AttendancePage() {
       toast.error("Could not update attendance");
     } finally {
       setActionId(null);
+    }
+  };
+
+  // Re-push a failed attendance sync. Touches only the community-app call —
+  // the attendance record itself is not modified.
+  const resyncDay = async (registrationId: string, date: string) => {
+    setResyncId(registrationId);
+    try {
+      const res = await authFetch(
+        `/api/registrations/${registrationId}/attendance/resync`,
+        { method: "POST", body: JSON.stringify({ date }) }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Synced to the community app");
+      } else {
+        toast.error(data.message || "Sync failed");
+      }
+      fetchRegistrations();
+    } catch {
+      toast.error("Could not reach the server");
+    } finally {
+      setResyncId(null);
     }
   };
 
@@ -574,6 +629,7 @@ export default function AttendancePage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>{dayLabel(activeDay) || "Day"}</TableHead>
+                  <TableHead>App</TableHead>
                   <TableHead>Overall</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -627,6 +683,14 @@ export default function AttendancePage() {
                         ) : (
                           <Badge variant="destructive">No Show</Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <SyncBadge
+                          state={syncStateFor(reg, activeDay)}
+                          sync={reg.attendanceSync}
+                          busy={resyncId === reg._id}
+                          onRetry={() => resyncDay(reg._id, activeDay)}
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -717,6 +781,74 @@ function StatCard({
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <p className="mt-2 text-2xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Whether this day's attendance reached the community app.
+ *
+ * Deliberately separate from the attendance badge next to it: VCC marking a
+ * volunteer attended is a fact about VCC, and stays true even when the push
+ * fails. Before this existed the only way to know was to read Vercel logs,
+ * which is why "VCC says attended but the app shows nothing" was so confusing.
+ */
+function SyncBadge({
+  state,
+  sync,
+  busy,
+  onRetry,
+}: {
+  state: SyncState;
+  sync?: AttendanceSync | null;
+  busy: boolean;
+  onRetry: () => void;
+}) {
+  if (state === "none") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  if (state === "synced") {
+    return (
+      <Badge variant="outline" className="gap-1 border-green-600 text-green-700">
+        <Smartphone className="h-3 w-3" />
+        Synced
+      </Badge>
+    );
+  }
+
+  if (state === "pending") {
+    return (
+      <Badge variant="outline" className="gap-1 text-muted-foreground">
+        <Clock className="h-3 w-3" />
+        Sending
+      </Badge>
+    );
+  }
+
+  const attempts = sync?.attempts ?? 0;
+  return (
+    <div className="flex items-center gap-1">
+      <Badge
+        variant="destructive"
+        className="gap-1"
+        // The reason is their error text verbatim — the thing that turns
+        // "it didn't work" into something actionable.
+        title={sync?.reason || "The community app did not accept this push"}
+      >
+        <AlertTriangle className="h-3 w-3" />
+        Not synced{attempts > 1 ? ` (${attempts})` : ""}
+      </Badge>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2"
+        disabled={busy}
+        onClick={onRetry}
+        title="Push this attendance to the community app again"
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
+      </Button>
     </div>
   );
 }

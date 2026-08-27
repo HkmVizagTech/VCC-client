@@ -32,9 +32,19 @@ import { after } from "next/server";
 const API_PATH = "/api/v1/user/festivals";
 
 // Cap a single attempt so a hung request can't hold the function open to its
-// execution limit, and allow one retry for transient socket failures.
+// execution limit.
 const REQUEST_TIMEOUT_MS = 15_000;
-const RETRY_DELAY_MS = 750;
+
+// Backoff between attempts. Vercel has no long-lived process, so "keep retrying
+// every few seconds" has to happen inside one invocation: three attempts spread
+// over roughly the first 5s catch the transient failures (WAF blip, ECONNRESET,
+// TLS reset) without anyone noticing. Anything still failing after that is
+// handed to the per-minute sweeper instead of being retried here forever.
+const RETRY_BACKOFF_MS = [750, 4_000];
+const DEFAULT_ATTEMPTS = 3;
+
+/** Outcome of one push, with enough detail to store and show an admin. */
+export type SyncResult = { ok: boolean; detail: string };
 
 const BASE_URL = (() => {
   const raw = (process.env.COMMUNITY_APP_API_URL || "https://harekrishnavizag.co.in")
@@ -52,17 +62,19 @@ const COMMON_HEADERS = {
     "Mozilla/5.0 (compatible; ISKCON-SevaPass/1.0; +https://harekrishnavizag.org)",
 };
 
-/** Returns true only if their API accepted the call. */
+/** Pushes once, retrying only transient network failures. */
 async function deliver(
   endpoint: string,
-  body: Record<string, string>
-): Promise<boolean> {
+  body: Record<string, string>,
+  maxAttempts: number = DEFAULT_ATTEMPTS
+): Promise<SyncResult> {
   const url = `${BASE_URL}/${endpoint}`;
   const who = body.volunteer_mobile_number || "?";
   const startedAt = Date.now();
+  let lastDetail = "no attempt made";
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const tag = attempt === 2 ? " (retry)" : "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const tag = attempt > 1 ? ` (attempt ${attempt}/${maxAttempts})` : "";
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -77,18 +89,18 @@ async function deliver(
         /html/i.test(contentType) || /^\s*<(!doctype|html)/i.test(text);
 
       if (!res.ok || looksHtml) {
-        // An HTTP-level rejection is their answer, not a glitch — do not retry
-        // it, or a 422 becomes two identical 422s in the log.
+        // An HTTP-level rejection is their considered answer, not a glitch —
+        // do not retry it, or a 422 becomes three identical 422s.
+        const detail = looksHtml
+          ? `HTTP ${res.status} — HTML page, not JSON (WAF block or unrouted URL)`
+          : `HTTP ${res.status}: ${text.slice(0, 200)}`;
         console.error(
-          `[community-sync] ${endpoint} FAILED for ${who} → HTTP ${res.status}${tag}` +
-            (looksHtml
-              ? " — got an HTML page, not JSON (WAF block or unrouted URL)."
-              : "") +
+          `[community-sync] ${endpoint} FAILED for ${who} → ${detail}${tag}` +
             `\n  url: ${url}` +
             `\n  payload: ${JSON.stringify(body)}` +
             `\n  response: ${text.slice(0, 300)}`
         );
-        return false;
+        return { ok: false, detail };
       }
 
       // Log successes too, with the FULL payload and elapsed ms.
@@ -101,25 +113,27 @@ async function deliver(
           `\n  sent: ${JSON.stringify(body)}` +
           `\n  got:  ${text.slice(0, 200)}`
       );
-      return true;
+      return { ok: true, detail: text.slice(0, 200) };
     } catch (err) {
-      // Network/timeout failure. These are the transient ones worth one retry
-      // (ECONNRESET, TLS handshake torn down, DNS blip).
-      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-      if (attempt === 1) {
+      // Network/timeout failure — the transient class worth retrying
+      // (ECONNRESET, TLS handshake torn down, DNS blip, timeout).
+      lastDetail =
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      const backoff = RETRY_BACKOFF_MS[attempt - 1];
+      if (attempt < maxAttempts && backoff !== undefined) {
         console.warn(
-          `[community-sync] ${endpoint} network error for ${who} — retrying in ${RETRY_DELAY_MS}ms: ${detail}`
+          `[community-sync] ${endpoint} network error for ${who} — retrying in ${backoff}ms: ${lastDetail}`
         );
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
       console.error(
-        `[community-sync] ${endpoint} request error for ${who} after 2 attempts: ${detail}` +
+        `[community-sync] ${endpoint} request error for ${who} after ${attempt} attempt(s): ${lastDetail}` +
           `\n  url: ${url}\n  payload: ${JSON.stringify(body)}`
       );
     }
   }
-  return false;
+  return { ok: false, detail: lastDetail };
 }
 
 function post(endpoint: string, body: Record<string, string>) {
@@ -172,7 +186,7 @@ export async function syncAssignSevaNow(
   serviceName: string,
   volunteerPhone: string,
   devoteePhone?: string
-): Promise<boolean> {
+): Promise<SyncResult> {
   return deliver(
     "assign-seva",
     assignSevaBody(eventId, serviceName, volunteerPhone, devoteePhone)
@@ -185,16 +199,44 @@ export async function syncAssignSevaNow(
 // is marked present on several distinct dates across one festival.
 // Required (not optional) on purpose — a missing date must be a compile error,
 // not a 422 discovered in production.
+function markAttendanceBody(
+  eventId: string,
+  volunteerPhone: string,
+  isPresent: boolean,
+  date: string
+): Record<string, string> {
+  return {
+    event_id: eventId,
+    volunteer_mobile_number: volunteerPhone,
+    is_present: isPresent ? "yes" : "no",
+    date,
+  };
+}
+
 export function syncMarkAttendance(
   eventId: string,
   volunteerPhone: string,
   isPresent: boolean,
   date: string
 ) {
-  post("mark-attendance", {
-    event_id: eventId,
-    volunteer_mobile_number: volunteerPhone,
-    is_present: isPresent ? "yes" : "no",
-    date,
-  });
+  post("mark-attendance", markAttendanceBody(eventId, volunteerPhone, isPresent, date));
+}
+
+/**
+ * Awaitable mark-attendance, for callers that record the outcome.
+ *
+ * The check-in and admin routes use this so the result can be written onto the
+ * registration — VCC marks the volunteer attended either way, but an admin can
+ * then see whether the community app got the message.
+ */
+export async function syncMarkAttendanceNow(
+  eventId: string,
+  volunteerPhone: string,
+  isPresent: boolean,
+  date: string
+): Promise<SyncResult> {
+  return deliver(
+    "mark-attendance",
+    markAttendanceBody(eventId, volunteerPhone, isPresent, date)
+  );
 }

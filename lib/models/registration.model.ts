@@ -30,6 +30,30 @@ export interface CustomAnswer {
   value: unknown;
 }
 
+export const SYNC_STATUSES = ["pending", "synced", "failed"] as const;
+export type SyncStatus = (typeof SYNC_STATUSES)[number];
+
+/**
+ * Outcome of the last mark-attendance push to the community app.
+ *
+ * VCC records attendance the instant a volunteer scans — that is a fact about
+ * our system and must never be lost because a third party is unreachable. But
+ * without this, whether the push actually landed was invisible outside Vercel
+ * logs, so VCC could show "Attended" while the app showed nothing and nobody
+ * could tell which had gone wrong.
+ */
+export interface AttendanceSync {
+  /** The event day that was pushed (`yyyy-MM-dd`). */
+  date: string;
+  /** What we told them — mirrors is_present yes/no. */
+  isPresent: boolean;
+  status: SyncStatus;
+  attempts: number;
+  lastAttemptAt?: Date;
+  /** Their error text (or ours) when status is "failed". */
+  reason?: string;
+}
+
 export interface IRegistration extends Document {
   eventId: Types.ObjectId;
   volunteerId: Types.ObjectId;
@@ -38,6 +62,8 @@ export interface IRegistration extends Document {
   serviceAvailability?: ServiceAvailabilityEntry[];
   /** Per-day attendance outcomes — one entry per event day. */
   dayAttendance?: DayAttendance[];
+  /** Last community-app attendance push for this registration. */
+  attendanceSync?: AttendanceSync;
   customAnswers?: CustomAnswer[];
   notes?: string;
   createdAt: Date;
@@ -75,6 +101,18 @@ const registrationSchema = new Schema<IRegistration>(
         source: { type: String, enum: ["qr", "admin"] },
       },
     ],
+    attendanceSync: {
+      type: {
+        _id: false,
+        date: { type: String, required: true },
+        isPresent: { type: Boolean, required: true },
+        status: { type: String, enum: SYNC_STATUSES, required: true },
+        attempts: { type: Number, default: 0 },
+        lastAttemptAt: Date,
+        reason: String,
+      },
+      default: undefined,
+    },
     customAnswers: [
       {
         _id: false,
@@ -93,6 +131,8 @@ registrationSchema.index({ eventId: 1, volunteerId: 1 }, { unique: true });
 registrationSchema.index({ eventId: 1, status: 1 });
 registrationSchema.index({ eventId: 1, createdAt: -1 });
 registrationSchema.index({ volunteerId: 1 });
+// Lets the retry sweeper find unsynced pushes without scanning the collection.
+registrationSchema.index({ "attendanceSync.status": 1, "attendanceSync.lastAttemptAt": 1 });
 
 if (mongoose.models.registration) {
   mongoose.deleteModel("registration");
