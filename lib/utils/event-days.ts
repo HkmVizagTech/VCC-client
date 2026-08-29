@@ -15,15 +15,57 @@
 // Everything below is pinned to Asia/Kolkata explicitly. India has a fixed
 // +05:30 offset and observes no DST, so a constant shift is exact — no need
 // for a timezone database.
+//
+// ─── The 1am day boundary ───────────────────────────────────────────────────
+// An event day does NOT end at midnight. A festival programme runs past
+// midnight, and a volunteer scanning at 00:30 is finishing the day that began
+// the previous morning — not starting a new one they aren't rostered for. So
+// the day rolls over at 01:00 IST: every instant between 00:00 and 01:00 IST
+// belongs to the previous day's key.
+//
+// This is the same boundary the daily-seva-sync cron runs on (01:00 IST), so
+// the day is settled and pushed at the moment it ends.
+//
+// It also makes the event form's defaults land exactly right: an event created
+// as 01:00 on the opening day through 23:00 on the closing day produces
+// exactly one key per calendar day, with no phantom day at either end.
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
 
-/** A Date's `yyyy-MM-dd` key as seen in India, regardless of server timezone. */
+/**
+ * The hour (IST) at which one event day becomes the next. Deliberately a
+ * hardcoded constant rather than an env var: the browser and the server MUST
+ * agree on it, and a value set in one place but not the other would put the
+ * admin screen and the check-in endpoint on different days — exactly the class
+ * of bug the IST pinning above was written to kill.
+ */
+export const DAY_START_HOUR_IST = 1;
+const DAY_START_OFFSET_MS = DAY_START_HOUR_IST * 60 * 60 * 1000;
+
+/**
+ * The event-day key an instant belongs to, in IST, honouring the 1am boundary.
+ * 00:30 IST on the 28th is still day "…-27".
+ */
 export function istDateKey(value: Date | string | number): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
-  // Shift the instant so that IST wall-clock time lands in the UTC fields,
-  // then read the UTC fields — those are now the Indian calendar date.
+  // Shift the instant so IST wall-clock time lands in the UTC fields, wind
+  // back to the day boundary, then read the UTC fields — those are now the
+  // Indian event-day date.
+  return new Date(d.getTime() + IST_OFFSET_MS - DAY_START_OFFSET_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
+/**
+ * The IST calendar date of an instant, ignoring the 1am boundary.
+ * For displaying a wall-clock date only — anything deciding which event day
+ * something counts towards must use istDateKey().
+ */
+export function istCalendarKey(value: Date | string | number): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
   return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
@@ -49,7 +91,7 @@ export function eventDayKeys(
   return keys;
 }
 
-/** Today as a `yyyy-MM-dd` key in IST. */
+/** Today as a `yyyy-MM-dd` event-day key in IST (rolls over at 01:00). */
 export function todayKey(): string {
   return istDateKey(new Date());
 }
@@ -86,4 +128,105 @@ export function dateInEventRange(
   const endKey = istDateKey(end);
   if (!startKey || !endKey) return false;
   return date >= startKey && date <= endKey;
+}
+
+/**
+ * Milliseconds from now until the next 01:00 IST rollover.
+ * The attendance screen uses this to re-arm a timer, so a tab left open
+ * overnight moves to the new day on its own instead of showing yesterday.
+ */
+export function msUntilNextDayBoundary(from: Date = new Date()): number {
+  const shifted = from.getTime() + IST_OFFSET_MS - DAY_START_OFFSET_MS;
+  const sinceBoundary = ((shifted % DAY_MS) + DAY_MS) % DAY_MS;
+  return DAY_MS - sinceBoundary;
+}
+
+// ─── datetime-local ⇄ stored instant ────────────────────────────────────────
+// The event form uses <input type="datetime-local">, which produces offset-less
+// strings like "2026-08-30T23:00". Those are ambiguous: a browser reads them as
+// local time (IST here), Vercel's Node reads them as UTC. Saving one therefore
+// stored a time 5h30m later than the admin typed — a 23:00 close became 04:30
+// the next morning, which manufactured an extra event day in attendance, in the
+// availability editor, and in the cron's range check. Re-saving an event shifted
+// it again, every time.
+//
+// These two helpers are the fix: the form renders with dateToIstInput() and the
+// API parses with parseIstInput(), so an offset-less string means India time on
+// both sides of the wire.
+
+/**
+ * A Date whose LOCAL fields equal the instant's IST wall clock.
+ *
+ * Pass it to date-fns format() to render Indian time in any browser, wherever
+ * the coordinator happens to be. Never do arithmetic with the result — it is a
+ * display shim, not a real instant.
+ */
+export function istWallClock(value?: Date | string | number | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const shifted = new Date(d.getTime() + IST_OFFSET_MS);
+  return new Date(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate(),
+    shifted.getUTCHours(),
+    shifted.getUTCMinutes(),
+    shifted.getUTCSeconds()
+  );
+}
+
+/** A stored instant as a `yyyy-MM-ddTHH:mm` value for <input type="datetime-local">, in IST. */
+export function dateToIstInput(value?: Date | string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 16);
+}
+
+/**
+ * Parse a datetime value that may or may not carry a timezone.
+ * A bare `yyyy-MM-ddTHH:mm` (what datetime-local submits) is read as IST;
+ * anything already carrying `Z` or an explicit offset is left alone, so
+ * existing API clients that send proper ISO strings are unaffected.
+ * Returns null for empty or unparseable input.
+ */
+export function parseIstInput(value?: string | Date | null): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const bare = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?(\.\d+)?$/.exec(raw);
+  const d = bare
+    ? new Date(`${bare[1]}T${bare[2]}${bare[3] || ":00"}${bare[4] || ".000"}+05:30`)
+    : new Date(raw);
+
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Normalizes the datetime fields on an event payload in place-safe fashion.
+ * Only touches keys that are actually present, so a PATCH-style partial update
+ * keeps working, and leaves a field alone if it cannot be parsed (the schema's
+ * own required/cast validation then reports it).
+ */
+export const EVENT_DATE_FIELDS = [
+  "eventStart",
+  "eventEnd",
+  "registrationStart",
+  "registrationEnd",
+] as const;
+
+export function normalizeEventDates<T extends Record<string, unknown>>(body: T): T {
+  const out: Record<string, unknown> = { ...body };
+  for (const field of EVENT_DATE_FIELDS) {
+    if (!(field in out)) continue;
+    const value = out[field];
+    if (value === null || value === "") continue;
+    const parsed = parseIstInput(value as string | Date);
+    if (parsed) out[field] = parsed;
+  }
+  return out as T;
 }

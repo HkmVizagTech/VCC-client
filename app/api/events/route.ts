@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 import { sanitizeCustomFields } from "@/lib/utils/custom-fields";
+import { normalizeEventDates } from "@/lib/utils/event-days";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     const [events, total] = await Promise.all([
       Event.find(filter)
-        .populate("coordinatorId", "name email")
+        .populate("coordinatorId", "name email phone")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
@@ -72,8 +73,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // The admin form posts <input type="datetime-local"> values, which carry no
+    // timezone. Node on Vercel reads those as UTC, so a 23:00 close was stored
+    // as 04:30 the next morning IST — inventing an extra event day everywhere
+    // day keys are derived. normalizeEventDates reads bare values as IST and
+    // leaves anything with an explicit Z/offset untouched.
     const event = await Event.create({
-      ...body,
+      ...normalizeEventDates(body),
       eventId: body.eventId.toUpperCase(),
       customFields: sanitizeCustomFields(body.customFields),
       createdBy: auth.userId,

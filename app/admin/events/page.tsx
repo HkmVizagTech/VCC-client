@@ -48,7 +48,19 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAuth } from "@/contexts/AuthContext";
-import { eachDayOfInterval } from "date-fns";
+import {
+  dateToIstInput,
+  eventDayKeys,
+  istWallClock,
+  parseIstInput,
+} from "@/lib/utils/event-days";
+
+// Every date in this screen is Indian time, whatever timezone the browser is
+// in — the same clock the check-in endpoint and the attendance screen use.
+const ist = (value?: string | null, pattern = "MMM d, yyyy") => {
+  const d = istWallClock(value);
+  return d ? format(d, pattern) : "—";
+};
 import type { IDaySlots, ITimeSlot } from "@/lib/models/event.model";
 
 const EVENT_STATUSES = [
@@ -73,6 +85,7 @@ interface Coordinator {
   _id: string;
   name: string;
   email: string;
+  phone?: string;
   role: string;
 }
 
@@ -127,12 +140,33 @@ const emptyForm = {
   photoRequired: false,
 };
 
+// Render a stored instant for <input type="datetime-local"> in IST.
+//
+// This used to be date-fns format(), which renders in the BROWSER's timezone
+// while the API stored the offset-less value back as UTC. The round trip moved
+// every event +5:30 on each save. dateToIstInput / parseIstInput are the two
+// halves of the fix and must stay paired.
 function toLocalInput(value?: string) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return format(d, "yyyy-MM-dd'T'HH:mm");
+  return dateToIstInput(value);
 }
+
+// <input type="datetime-local"> gives back "" or "yyyy-MM-ddTHH:mm". Picking a
+// date in the calendar popup leaves the time at 00:00, so that is the signal
+// that the admin chose a day and not a time — fill in the event-day default.
+// A time they actually typed is never overwritten.
+function withDefaultTime(value: string, defaultTime: string) {
+  if (!value) return value;
+  const [datePart, timePart] = value.split("T");
+  if (!datePart) return value;
+  if (!timePart || timePart.startsWith("00:00")) return `${datePart}T${defaultTime}`;
+  return value;
+}
+
+// Opening day starts at the 1am day boundary, closing day ends at 23:00 — so
+// eventDayKeys() yields exactly one key per calendar day, with no phantom day
+// at either end. See lib/utils/event-days.ts.
+const DEFAULT_START_TIME = "01:00";
+const DEFAULT_END_TIME = "23:00";
 
 export default function EventsPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -483,7 +517,7 @@ export default function EventsPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Registration Opens</Label>
+                  <Label>Registration Opens (IST)</Label>
                   <Input
                     type="datetime-local"
                     value={form.registrationStart}
@@ -493,7 +527,7 @@ export default function EventsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Registration Closes</Label>
+                  <Label>Registration Closes (IST)</Label>
                   <Input
                     type="datetime-local"
                     value={form.registrationEnd}
@@ -505,22 +539,31 @@ export default function EventsPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Event Starts *</Label>
+                  <Label>Event Starts * (IST)</Label>
                   <Input
                     type="datetime-local"
                     value={form.eventStart}
                     onChange={(e) =>
-                      setForm({ ...form, eventStart: e.target.value })
+                      setForm({
+                        ...form,
+                        eventStart: withDefaultTime(
+                          e.target.value,
+                          DEFAULT_START_TIME
+                        ),
+                      })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Event Ends *</Label>
+                  <Label>Event Ends * (IST)</Label>
                   <Input
                     type="datetime-local"
                     value={form.eventEnd}
                     onChange={(e) =>
-                      setForm({ ...form, eventEnd: e.target.value })
+                      setForm({
+                        ...form,
+                        eventEnd: withDefaultTime(e.target.value, DEFAULT_END_TIME),
+                      })
                     }
                   />
                 </div>
@@ -539,7 +582,13 @@ export default function EventsPage() {
                   <SelectContent>
                     {coordinators.map((c) => (
                       <SelectItem key={c._id} value={c._id}>
-                        {c.name} — {c.email}
+                        <span className="flex flex-col">
+                          <span>{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {c.phone ? `${c.phone} · ` : ""}
+                            {c.email}
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -567,14 +616,17 @@ export default function EventsPage() {
                   will pick which slots they are available for.
                 </p>
                 {form.eventStart && form.eventEnd ? (() => {
-                  const days = eachDayOfInterval({
-                    start: new Date(form.eventStart),
-                    end: new Date(form.eventEnd),
-                  });
+                  // Day keys come from the same IST helper the API and the
+                  // check-in endpoint use. Deriving them from the browser's
+                  // timezone (the old eachDayOfInterval + format) produced a
+                  // different set of days than attendance later expected.
+                  const dayKeys = eventDayKeys(
+                    parseIstInput(form.eventStart),
+                    parseIstInput(form.eventEnd)
+                  );
                   return (
                     <div className="space-y-3">
-                      {days.map((day) => {
-                        const dateKey = format(day, "yyyy-MM-dd");
+                      {dayKeys.map((dateKey) => {
                         const dayEntry = form.availabilitySlots.find(
                           (d) => d.date === dateKey
                         );
@@ -597,7 +649,7 @@ export default function EventsPage() {
                             className="rounded-md border p-3 space-y-2"
                           >
                             <p className="text-sm font-medium">
-                              {format(day, "EEEE, MMMM d")}
+                              {format(new Date(`${dateKey}T12:00:00`), "EEEE, MMMM d")}
                             </p>
                             {slots.map((slot, idx) => (
                               <div
@@ -786,23 +838,42 @@ export default function EventsPage() {
                 return (
                   <TableRow key={event._id}>
                     <TableCell className="max-w-64">
-                      <div className="font-medium">{event.name}</div>
+                      <Link
+                        href={`/admin/events/${event._id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {event.name}
+                      </Link>
                       <div className="text-xs font-mono text-muted-foreground">
                         {event.eventId}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {format(new Date(event.eventStart), "MMM d, yyyy")}
+                        {ist(event.eventStart)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(event.eventStart), "h:mm a")} —{" "}
-                        {format(new Date(event.eventEnd), "h:mm a")}
+                        {ist(event.eventStart, "h:mm a")} —{" "}
+                        {ist(event.eventEnd, "h:mm a")} IST
                       </div>
                     </TableCell>
                     <TableCell>{event.venue || "—"}</TableCell>
                     <TableCell>
-                      {event.coordinatorId?.name || "—"}
+                      {event.coordinatorId ? (
+                        <>
+                          <div>{event.coordinatorId.name}</div>
+                          {event.coordinatorId.phone && (
+                            <a
+                              href={`tel:${event.coordinatorId.phone}`}
+                              className="text-xs text-muted-foreground hover:underline"
+                            >
+                              {event.coordinatorId.phone}
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell>
                       <Select
@@ -837,17 +908,18 @@ export default function EventsPage() {
                           <Copy className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="outline"
+                          size="sm"
                           nativeButton={false}
                           render={
                             <Link
                               href={`/admin/events/${event._id}`}
-                              title="Services"
+                              title="Open this event — services, registrations and assignments"
                             />
                           }
                         >
-                          <ListTree className="h-4 w-4" />
+                          <ListTree className="mr-1.5 h-4 w-4" />
+                          Open
                         </Button>
                         <Button
                           variant="ghost"

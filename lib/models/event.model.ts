@@ -118,7 +118,12 @@ const eventSchema = new Schema<IEvent>(
     status: {
       type: String,
       enum: EVENT_STATUSES,
-      default: "draft",
+      // New events open for registration immediately. They used to default to
+      // "draft", which meant an event was invisible to the mobile app, the QR
+      // system and the public site until somebody remembered to flip it — the
+      // event looked created but nothing could see it. Park an event back to
+      // "draft" explicitly if it isn't ready.
+      default: "registration_open",
     },
     coordinatorId: {
       type: Schema.Types.ObjectId,

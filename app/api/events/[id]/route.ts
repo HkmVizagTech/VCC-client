@@ -4,7 +4,9 @@ import { Event, Service, Registration, User } from "@/lib/models";
 import { authenticateWithRole } from "@/lib/auth";
 import { comparePassword } from "@/lib/utils/password";
 import { sanitizeCustomFields } from "@/lib/utils/custom-fields";
+import { normalizeEventDates } from "@/lib/utils/event-days";
 
+// The natural forward progression of an event.
 const VALID_TRANSITIONS: Record<string, string> = {
   draft: "registration_open",
   registration_open: "registration_closed",
@@ -12,6 +14,25 @@ const VALID_TRANSITIONS: Record<string, string> = {
   ongoing: "completed",
   completed: "archived",
 };
+
+/**
+ * Which status changes this endpoint accepts.
+ *
+ * Two rules used to disagree: PUT /api/events/:id enforced the strict forward
+ * chain above, while PUT /api/events/:id/status — the one the admin UI actually
+ * calls — accepted any status jumping to any other. So the same change was
+ * rejected or allowed depending on which screen you were on.
+ *
+ * The rule now: move forward one step, or park the event back to `draft` from
+ * anywhere. Parking is deliberate — events are created as `registration_open`,
+ * so "put it back out of sight while I finish setting it up" is the normal
+ * correction, and the old chain made it impossible.
+ */
+function isAllowedStatusChange(from: string, to: string): boolean {
+  if (from === to) return true;
+  if (to === "draft") return true;
+  return VALID_TRANSITIONS[from] === to;
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,7 +46,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const event = await Event.findById(id).populate(
       "coordinatorId",
-      "name email"
+      "name email phone"
     );
     if (!event) {
       return NextResponse.json(
@@ -107,23 +128,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
       delete body.password;
     }
 
-    if (body.status && body.status !== event.status) {
+    if (body.status && !isAllowedStatusChange(event.status, body.status)) {
       const allowedNext = VALID_TRANSITIONS[event.status];
-      if (body.status !== allowedNext) {
-        return NextResponse.json(
-          {
-            message: `Cannot transition from ${event.status} to ${body.status}. Next valid status: ${allowedNext || "none"}`,
-          },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        {
+          message: `Cannot transition from ${event.status} to ${body.status}. Move it to ${allowedNext || "draft"}, or back to draft.`,
+        },
+        { status: 400 }
+      );
     }
 
     if (body.customFields !== undefined) {
       body.customFields = sanitizeCustomFields(body.customFields);
     }
 
-    Object.assign(event, body);
+    // Bare datetime-local values mean IST, not UTC — see normalizeEventDates.
+    // Without this, opening an event and re-saving it shifted every time by
+    // +5:30, compounding on each edit.
+    Object.assign(event, normalizeEventDates(body));
     await event.save();
 
     return NextResponse.json({ message: "Event updated", event });

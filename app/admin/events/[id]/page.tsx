@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
+import { istWallClock } from "@/lib/utils/event-days";
 import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
 import type { IDaySlots } from "@/lib/models/event.model";
@@ -51,11 +52,19 @@ import {
   Users,
   Copy,
   QrCode,
+  UserRound,
 } from "lucide-react";
 import { RegistrationsSection } from "./registrations-section";
 import { CheckInQr } from "@/components/check-in-qr";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
 import { RefreshButton } from "@/components/refresh-button";
+
+// Every date on this screen is Indian time, whatever timezone the browser is
+// in — the same clock the check-in endpoint and the attendance screen use.
+const ist = (value?: string | null, pattern = "MMM d, yyyy h:mm a") => {
+  const d = istWallClock(value);
+  return d ? format(d, pattern) : "—";
+};
 
 const EVENT_STATUSES = [
   "draft",
@@ -79,6 +88,7 @@ interface Coordinator {
   _id: string;
   name: string;
   email: string;
+  phone?: string;
   role: string;
 }
 
@@ -100,6 +110,7 @@ interface EventDetail {
   venue?: string;
   eventStart: string;
   eventEnd: string;
+  coordinatorId?: Coordinator | null;
   availabilitySlots?: IDaySlots[];
   customFields?: CustomFieldDef[];
   status: string;
@@ -353,9 +364,23 @@ export default function EventDetailPage() {
                 <>
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarClock className="h-4 w-4" />
-                    {format(new Date(event.eventStart), "MMM d, yyyy h:mm a")} —{" "}
-                    {format(new Date(event.eventEnd), "MMM d, yyyy h:mm a")}
+                    {ist(event.eventStart, "MMM d, yyyy h:mm a")} —{" "}
+                    {ist(event.eventEnd, "MMM d, yyyy h:mm a")} IST
                   </span>
+                  {event.coordinatorId && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserRound className="h-4 w-4" />
+                      {event.coordinatorId.name}
+                      {event.coordinatorId.phone && (
+                        <a
+                          href={`tel:${event.coordinatorId.phone}`}
+                          className="hover:underline"
+                        >
+                          {event.coordinatorId.phone}
+                        </a>
+                      )}
+                    </span>
+                  )}
                   {event.venue && (
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-4 w-4" />
@@ -501,7 +526,13 @@ export default function EventDetailPage() {
                       <SelectContent>
                         {coordinators.map((c) => (
                           <SelectItem key={c._id} value={c._id}>
-                            {c.name} — {c.email}
+                            <span className="flex flex-col">
+                              <span>{c.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {c.phone ? `${c.phone} · ` : ""}
+                                {c.email}
+                              </span>
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -575,14 +606,37 @@ export default function EventDetailPage() {
                         <SelectContent>
                           {coordinators.map((c) => (
                             <SelectItem key={c._id} value={c._id}>
-                              {c.name}
+                              <span className="flex flex-col">
+                                <span>{c.name}</span>
+                                {c.phone && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {c.phone}
+                                  </span>
+                                )}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
                       <span className="text-sm">
-                        {service.coordinatorId?.name || "—"}
+                        {service.coordinatorId ? (
+                          <>
+                            <span className="block">
+                              {service.coordinatorId.name}
+                            </span>
+                            {service.coordinatorId.phone && (
+                              <a
+                                href={`tel:${service.coordinatorId.phone}`}
+                                className="block text-xs text-muted-foreground hover:underline"
+                              >
+                                {service.coordinatorId.phone}
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </span>
                     )}
                   </div>

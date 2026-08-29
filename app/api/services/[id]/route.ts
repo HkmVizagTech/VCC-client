@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const service = await Service.findById(id).populate(
       "coordinatorId",
-      "name email"
+      "name email phone"
     );
     if (!service) {
       return NextResponse.json(

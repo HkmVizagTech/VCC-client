@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       id,
       { coordinatorId },
       { new: true }
-    ).populate("coordinatorId", "name email");
+    ).populate("coordinatorId", "name email phone");
 
     if (!service) {
       return NextResponse.json(
