@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
 import {
   ArrowLeft,
   CalendarDays,
@@ -10,6 +9,14 @@ import {
 } from "lucide-react";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
+// Every date shown to a devotee is Indian time, whatever timezone their phone
+// is set to — otherwise the day they read here is not the day check-in accepts.
+import {
+  formatEventDateRange,
+  formatEventDayCount,
+  formatEventSpan,
+  formatIstStamp,
+} from "@/lib/utils/event-format";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +52,7 @@ export default async function PublicEventDetailPage({
   if (!event) notFound();
 
   const registrationOpen = event.status === "registration_open";
+  const dayCount = formatEventDayCount(event.eventStart, event.eventEnd);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -119,17 +127,22 @@ export default async function PublicEventDetailPage({
                 <div>
                   <p className="font-medium">Date</p>
                   <p className="text-muted-foreground">
-                    {format(new Date(event.eventStart), "EEEE, MMMM d, yyyy")}
+                    {formatEventDateRange(event.eventStart, event.eventEnd)}
                   </p>
+                  {dayCount && dayCount !== "1 day" && (
+                    <p className="text-xs text-muted-foreground">{dayCount}</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Clock className="h-5 w-5 shrink-0 text-primary" />
                 <div>
                   <p className="font-medium">Timings</p>
+                  {/* formatEventSpan, not a bare time range: on a multi-day
+                      event "4:46 PM — 4:49 AM" reads as ending before it
+                      starts, so the dates come along when they differ. */}
                   <p className="text-muted-foreground">
-                    {format(new Date(event.eventStart), "h:mm a")} —{" "}
-                    {format(new Date(event.eventEnd), "h:mm a")}
+                    {formatEventSpan(event.eventStart, event.eventEnd)}
                   </p>
                 </div>
               </div>
@@ -148,10 +161,7 @@ export default async function PublicEventDetailPage({
                   <div>
                     <p className="font-medium">Registration closes</p>
                     <p className="text-muted-foreground">
-                      {format(
-                        new Date(event.registrationEnd),
-                        "MMM d, yyyy h:mm a"
-                      )}
+                      {formatIstStamp(event.registrationEnd)}
                     </p>
                   </div>
                 </div>

@@ -69,14 +69,40 @@ export function istCalendarKey(value: Date | string | number): string {
   return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+// ─── The two ends of an event are not symmetric ─────────────────────────────
+// The 1am boundary exists so a volunteer scanning at 00:30 is credited to the
+// day that began the previous morning. That is exactly right for an event's
+// END: a programme finishing at 00:30 on 1 Sep is the closing night of the
+// 31st, and must not manufacture a 1 Sep day nobody is rostered for.
+//
+// It is exactly wrong for an event's START. A date picker hands back 00:00, and
+// an admin who sets the opening day to 29 Aug means the 29th — but 00:00 IST
+// falls before the 01:00 boundary, so the boundary rule would call it the 28th
+// and prepend a phantom opening day nobody can ever attend. The start is
+// therefore read as a plain IST calendar date.
+//
+// (The event form defaults a picked date to 01:00, which sidesteps this. These
+// two helpers make it impossible rather than merely unlikely — including for
+// events created before that default existed, and for times typed by hand.)
+
+/** The `yyyy-MM-dd` opening day of an event, IST. */
+export function eventStartKey(start?: Date | string | null): string {
+  return start ? istCalendarKey(start) : "";
+}
+
+/** The `yyyy-MM-dd` closing day of an event, IST, honouring the 1am boundary. */
+export function eventEndKey(end?: Date | string | null): string {
+  return end ? istDateKey(end) : "";
+}
+
 /** All calendar days of an event as `yyyy-MM-dd` keys, IST, inclusive. */
 export function eventDayKeys(
   start?: Date | string | null,
   end?: Date | string | null
 ): string[] {
   if (!start || !end) return [];
-  const startKey = istDateKey(start);
-  const endKey = istDateKey(end);
+  const startKey = eventStartKey(start);
+  const endKey = eventEndKey(end);
   if (!startKey || !endKey || endKey < startKey) return [];
 
   // Walk day by day from the IST start key. Stepping in UTC from a midday
@@ -124,8 +150,10 @@ export function dateInEventRange(
   end?: Date | string | null
 ): boolean {
   if (!date || !start || !end) return false;
-  const startKey = istDateKey(start);
-  const endKey = istDateKey(end);
+  // Same asymmetry as eventDayKeys — this must accept exactly the days that
+  // list contains, or the admin screen offers a day the API then rejects.
+  const startKey = eventStartKey(start);
+  const endKey = eventEndKey(end);
   if (!startKey || !endKey) return false;
   return date >= startKey && date <= endKey;
 }

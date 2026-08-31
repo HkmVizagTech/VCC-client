@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
 import {
   Calendar,
   MapPin,
@@ -16,6 +15,7 @@ import {
   Clock,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { formatEventDateRange } from "@/lib/utils/event-format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,13 +74,11 @@ const statusConfig: Record<
   no_show: { label: "No Show", variant: "destructive", icon: XCircle },
 };
 
-function formatDateRange(start: string, end?: string) {
-  const s = new Date(start);
-  const e = end ? new Date(end) : null;
-  const startStr = format(s, "EEE, MMM d, yyyy");
-  if (!e || e.toDateString() === s.toDateString()) return startStr;
-  return `${startStr} - ${format(e, "MMM d")}`;
-}
+// The local copy of this used raw `new Date()` + date-fns `format()`, which
+// renders in the DEVICE's timezone. A devotee whose phone is not on IST was
+// shown a different day from the one their check-in would be recorded against.
+// formatEventDateRange is pinned to IST and derives the span from the same day
+// keys attendance uses.
 
 /* ---------- Components ---------- */
 
@@ -114,7 +112,7 @@ function SevaCard({ registration }: { registration: Registration }) {
         <div className="mt-2 space-y-1 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Calendar className="h-3.5 w-3.5 shrink-0" />
-            <span>{formatDateRange(event.eventStart, event.eventEnd)}</span>
+            <span>{formatEventDateRange(event.eventStart, event.eventEnd)}</span>
           </div>
           {event.venue && (
             <div className="flex items-center gap-2">

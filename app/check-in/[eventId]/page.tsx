@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { format } from "date-fns";
 import {
   ArrowRight,
   Calendar,
@@ -16,6 +15,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { todayKey } from "@/lib/utils/event-days";
+import { formatDayKey, formatEventDateRange } from "@/lib/utils/event-format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,8 +60,7 @@ interface CheckInResult {
 
 type Step = "phone" | "confirm" | "done";
 
-const dayLabel = (day: string) =>
-  format(new Date(`${day}T00:00:00`), "EEE, MMM d");
+const dayLabel = (day: string) => formatDayKey(day, "EEE, d MMM");
 
 /* ---------- Page ---------- */
 
@@ -116,7 +116,11 @@ export default function CheckInPage() {
       setLookup(data);
 
       const days = data.event.days || [];
-      const today = format(new Date(), "yyyy-MM-dd");
+      // todayKey(), not the phone's own date: the server decides which day a
+      // scan counts for using the 1am IST boundary, and a volunteer scanning
+      // at 00:30 — or on a phone in another timezone — was being shown a
+      // different day from the one their check-in would actually land on.
+      const today = todayKey();
       setSelectedDay(days.includes(today) ? today : days[0] || "");
 
       const allCheckedIn =
@@ -212,11 +216,7 @@ export default function CheckInPage() {
               {event.eventStart && (
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
-                  {format(new Date(event.eventStart), "EEE, MMM d, yyyy")}
-                  {event.eventEnd &&
-                    new Date(event.eventEnd).toDateString() !==
-                      new Date(event.eventStart).toDateString() &&
-                    ` – ${format(new Date(event.eventEnd), "MMM d")}`}
+                  {formatEventDateRange(event.eventStart, event.eventEnd)}
                 </span>
               )}
               {event.venue && (
@@ -344,8 +344,7 @@ export default function CheckInPage() {
                         lookup.registration.noShowDays || []
                       ).includes(day);
                       const active = selectedDay === day;
-                      const isToday =
-                        day === format(new Date(), "yyyy-MM-dd");
+                      const isToday = day === todayKey();
                       return (
                         <button
                           key={day}

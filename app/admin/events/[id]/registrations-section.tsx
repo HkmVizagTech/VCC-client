@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { format, eachDayOfInterval } from "date-fns";
 import { authFetch } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +45,7 @@ import { PhotoCapture } from "@/components/photo-capture";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
 import { summarizeAttendance } from "@/lib/utils/attendance-summary";
+import { formatDayKey } from "@/lib/utils/event-format";
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
@@ -168,13 +168,12 @@ export function RegistrationsSection({
     fetchRegistrations();
   }, [fetchRegistrations]);
 
-  const eventDays = useMemo(() => {
-    if (!eventStart || !eventEnd) return [];
-    return eachDayOfInterval({
-      start: new Date(eventStart),
-      end: new Date(eventEnd),
-    });
-  }, [eventStart, eventEnd]);
+  // (A local `eventDays` built with date-fns eachDayOfInterval on the raw
+  // instants used to live here. Nothing read it, and it disagreed with
+  // eventDayKeys() — it walked days in the browser's timezone rather than IST.
+  // Removed rather than fixed: the day list this screen needs already comes
+  // from availabilitySlots, and a second, subtly different definition of "the
+  // days of an event" is exactly how the 4-day/3-day confusion started.)
 
   const allSlotLabels = useMemo(() => {
     const labels: string[] = [];
@@ -517,7 +516,7 @@ export function RegistrationsSection({
               <SelectItem value="__all">Any day</SelectItem>
               {availabilitySlots.map((day) => (
                 <SelectItem key={day.date} value={day.date}>
-                  {format(new Date(`${day.date}T00:00:00`), "EEE, MMM d")}
+                  {formatDayKey(day.date, "EEE, d MMM")}
                 </SelectItem>
               ))}
             </SelectContent>

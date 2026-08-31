@@ -51,16 +51,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   dateToIstInput,
   eventDayKeys,
-  istWallClock,
   parseIstInput,
 } from "@/lib/utils/event-days";
-
-// Every date in this screen is Indian time, whatever timezone the browser is
+// Every date on this screen is Indian time, whatever timezone the browser is
 // in — the same clock the check-in endpoint and the attendance screen use.
-const ist = (value?: string | null, pattern = "MMM d, yyyy") => {
-  const d = istWallClock(value);
-  return d ? format(d, pattern) : "—";
-};
+import {
+  formatEventDateRange,
+  formatEventDayCount,
+  formatEventTimeRange,
+} from "@/lib/utils/event-format";
 import type { IDaySlots, ITimeSlot } from "@/lib/models/event.model";
 
 const EVENT_STATUSES = [
@@ -568,6 +567,39 @@ export default function EventsPage() {
                   />
                 </div>
               </div>
+
+              {/* The attendance day count, spelled out beside the fields that
+                  produce it.
+                  An event whose end lands past 01:00 the following morning is
+                  one day longer than it reads — which is how "29–31 August"
+                  quietly became four attendance days, four availability rows
+                  and an "Attended 1/4" badge. Nothing said so until someone
+                  opened the attendance screen. Now it says so here. */}
+              {(() => {
+                const start = parseIstInput(form.eventStart);
+                const end = parseIstInput(form.eventEnd);
+                if (!start || !end) return null;
+                const keys = eventDayKeys(start, end);
+                if (keys.length === 0) {
+                  return (
+                    <p className="text-xs text-destructive">
+                      Event ends before it starts — no attendance days.
+                    </p>
+                  );
+                }
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {keys.length} attendance{" "}
+                      {keys.length === 1 ? "day" : "days"}:
+                    </span>{" "}
+                    {keys
+                      .map((k) => format(new Date(`${k}T12:00:00`), "d MMM"))
+                      .join(", ")}
+                  </p>
+                );
+              })()}
+
               <div className="space-y-2">
                 <Label>Coordinator *</Label>
                 <Select
@@ -849,12 +881,24 @@ export default function EventsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      {/* The closing date used to be dropped here — only the
+                          start date was shown, with the start and end TIMES
+                          beside it, so a multi-day event read as
+                          "Sep 4 · 4:46 PM — 4:49 AM": finishing before it
+                          began. The range now comes from the same day keys
+                          attendance uses. */}
                       <div className="text-sm">
-                        {ist(event.eventStart)}
+                        {formatEventDateRange(event.eventStart, event.eventEnd)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {ist(event.eventStart, "h:mm a")} —{" "}
-                        {ist(event.eventEnd, "h:mm a")} IST
+                        {formatEventTimeRange(event.eventStart, event.eventEnd)}
+                        {(() => {
+                          const days = formatEventDayCount(
+                            event.eventStart,
+                            event.eventEnd
+                          );
+                          return days && days !== "1 day" ? ` · ${days}` : "";
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>{event.venue || "—"}</TableCell>

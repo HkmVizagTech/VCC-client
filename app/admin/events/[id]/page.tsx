@@ -3,8 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { format } from "date-fns";
-import { istWallClock } from "@/lib/utils/event-days";
+import {
+  formatEventDateRange,
+  formatEventDayCount,
+  formatEventTimeRange,
+} from "@/lib/utils/event-format";
 import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
 import type { IDaySlots } from "@/lib/models/event.model";
@@ -58,13 +61,6 @@ import { RegistrationsSection } from "./registrations-section";
 import { CheckInQr } from "@/components/check-in-qr";
 import type { CustomFieldDef } from "@/components/custom-fields-builder";
 import { RefreshButton } from "@/components/refresh-button";
-
-// Every date on this screen is Indian time, whatever timezone the browser is
-// in — the same clock the check-in endpoint and the attendance screen use.
-const ist = (value?: string | null, pattern = "MMM d, yyyy h:mm a") => {
-  const d = istWallClock(value);
-  return d ? format(d, pattern) : "—";
-};
 
 const EVENT_STATUSES = [
   "draft",
@@ -364,8 +360,17 @@ export default function EventDetailPage() {
                 <>
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarClock className="h-4 w-4" />
-                    {ist(event.eventStart, "MMM d, yyyy h:mm a")} —{" "}
-                    {ist(event.eventEnd, "MMM d, yyyy h:mm a")} IST
+                    {formatEventDateRange(event.eventStart, event.eventEnd)}
+                    <span className="opacity-70">
+                      · {formatEventTimeRange(event.eventStart, event.eventEnd)}
+                      {(() => {
+                        const days = formatEventDayCount(
+                          event.eventStart,
+                          event.eventEnd
+                        );
+                        return days && days !== "1 day" ? ` · ${days}` : "";
+                      })()}
+                    </span>
                   </span>
                   {event.coordinatorId && (
                     <span className="inline-flex items-center gap-1.5">

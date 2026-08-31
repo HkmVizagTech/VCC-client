@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { CalendarDays, MapPin, ArrowRight } from "lucide-react";
+import { formatEventDateRange } from "@/lib/utils/event-format";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/lib/models";
 
@@ -116,12 +116,11 @@ export default async function PublicEventsPage() {
                   <div className="mt-4 space-y-1.5 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <CalendarDays className="h-4 w-4" />
+                      {/* IST, not the visitor's timezone — a devotee abroad
+                          (or on a phone whose clock has drifted) was shown a
+                          different day from the one check-in accepts. */}
                       <span>
-                        {format(new Date(event.eventStart), "EEE, MMM d, yyyy")}
-                        {event.eventEnd &&
-                          new Date(event.eventEnd).toDateString() !==
-                            new Date(event.eventStart).toDateString() &&
-                          ` – ${format(new Date(event.eventEnd), "MMM d")}`}
+                        {formatEventDateRange(event.eventStart, event.eventEnd)}
                       </span>
                     </div>
                     {event.venue && (
