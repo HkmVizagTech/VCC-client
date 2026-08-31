@@ -45,6 +45,7 @@ import { VolunteerDetailsDialog } from "@/components/volunteer-details-dialog";
 import { PhotoCapture } from "@/components/photo-capture";
 import { toast } from "sonner";
 import { ClipboardList, UserCheck, Plus, Loader2, Eye } from "lucide-react";
+import { summarizeAttendance } from "@/lib/utils/attendance-summary";
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
@@ -53,14 +54,6 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: "No Show",
   cancelled: "Cancelled",
 };
-
-const STATUS_STYLES: Record<string, string> = {
-  registered: "outline",
-  assigned: "secondary",
-  attended: "default",
-  no_show: "destructive",
-  cancelled: "secondary",
-} as const;
 
 const NEXT_STATUSES: Record<string, string[]> = {
   registered: ["assigned", "cancelled"],
@@ -112,6 +105,7 @@ interface Registration {
   volunteerId?: RegisteredVolunteer;
   serviceId?: { _id: string; name: string } | null;
   serviceAvailability?: ServiceAvailabilityEntry[];
+  dayAttendance?: { date: string; status: "attended" | "no_show" }[];
   customAnswers?: CustomAnswer[];
   createdAt: string;
 }
@@ -611,6 +605,10 @@ export function RegistrationsSection({
                 const availability = serviceAvailabilitySummary(
                   reg.serviceAvailability
                 );
+                // Attendance is per-day; reg.status is a lifetime flag that
+                // sticks at "attended" after the first scan. Show what the
+                // days actually say. See lib/utils/attendance-summary.ts.
+                const summary = summarizeAttendance(reg, eventStart, eventEnd);
                 return (
                   <TableRow key={reg._id}>
                     <TableCell>
@@ -662,8 +660,8 @@ export function RegistrationsSection({
                       </TableCell>
                     )}
                     <TableCell>
-                      <Badge variant={STATUS_STYLES[reg.status] as "outline"}>
-                        {STATUS_LABELS[reg.status] || reg.status}
+                      <Badge variant={summary.variant} title={summary.title}>
+                        {summary.label}
                       </Badge>
                     </TableCell>
                     {canManage && (

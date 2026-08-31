@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Event, Volunteer, Registration } from "@/lib/models";
 import { validatePhone } from "@/lib/utils/phone";
 import { validateAndNormalizeAnswers } from "@/lib/utils/custom-fields";
+import { applyVolunteerProfile } from "@/lib/utils/volunteer-profile";
 
 type Params = { params: Promise<{ eventId: string }> };
 
@@ -30,7 +31,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const dateOfBirth = body.dateOfBirth || body.date_of_birth;
 
-    if (!name) {
+    // Must be a real string: the name is what overwrites the stored volunteer
+    // below, and a blank or non-string one would leave a new document without
+    // the field the schema requires — a 500 where a 400 belongs.
+    if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { message: "Name is required" },
         { status: 400 }
@@ -78,25 +82,38 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
+    // The app owns the volunteer's identity, not VCC.
+    //
+    // We find the volunteer by phone, and a phone number is not a person: it
+    // gets shared, lent and reassigned between events. So whatever the app
+    // sends now REPLACES what we hold — otherwise a number first registered
+    // years ago as "Radha" keeps showing that name for whoever uses it today.
+    // Fields the payload doesn't carry are left alone; see
+    // lib/utils/volunteer-profile.ts.
+    const profile = {
+      name,
+      dateOfBirth,
+      age,
+      gender,
+      locality,
+      occupation,
+      occupationType,
+      institution,
+      company,
+      skills,
+      photoKey,
+      notes,
+    };
+
     let volunteer = await Volunteer.findOne({ phone: phoneResult.phone });
     if (!volunteer) {
-      volunteer = await Volunteer.create({
-        name,
-        phone: phoneResult.phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-        age,
-        gender,
-        locality,
-        occupation,
-        occupationType,
-        institution,
-        company,
-        skills: skills || [],
-        photoKey: photoKey || undefined,
-        notes,
-      });
-    } else if (photoKey && !volunteer.photoKey) {
-      volunteer.photoKey = photoKey;
+      volunteer = new Volunteer({ phone: phoneResult.phone, skills: [] });
+      applyVolunteerProfile(volunteer, profile);
+      await volunteer.save();
+    } else if (applyVolunteerProfile(volunteer, profile)) {
+      // Runs before the "already registered" check below on purpose: a repeat
+      // registration is the app telling us about this number again, and the
+      // corrected name must stick even though no new registration is created.
       await volunteer.save();
     }
 

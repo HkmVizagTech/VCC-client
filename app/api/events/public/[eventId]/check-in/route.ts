@@ -11,7 +11,7 @@ type DayEntry = {
   date: string;
   status: "attended" | "no_show";
   checkedInAt?: Date;
-  source?: "qr" | "admin";
+  source?: "qr" | "admin" | "auto";
 };
 
 type LookupResult =

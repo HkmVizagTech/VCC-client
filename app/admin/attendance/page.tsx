@@ -52,6 +52,7 @@ import {
   markableDayKeys,
   todayKey,
 } from "@/lib/utils/event-days";
+import { summarizeAttendance } from "@/lib/utils/attendance-summary";
 
 // --- Types ---
 
@@ -120,22 +121,6 @@ function syncStateFor(reg: Registration, day: string): SyncState {
 }
 
 // --- Constants ---
-
-const OVERALL_LABELS: Record<string, string> = {
-  registered: "Registered",
-  assigned: "Assigned",
-  attended: "Attended",
-  no_show: "No Show",
-  cancelled: "Cancelled",
-};
-
-const OVERALL_STYLES: Record<string, string> = {
-  registered: "outline",
-  assigned: "secondary",
-  attended: "default",
-  no_show: "destructive",
-  cancelled: "secondary",
-};
 
 // Must never throw. `activeDay` is "" on the render right after an event is
 // picked — the effect that sets it has not run yet — and date-fns `format()`
@@ -639,6 +624,11 @@ export default function AttendancePage() {
                   const vol = reg.volunteerId;
                   const isProcessing = actionId === reg._id;
                   const entry = dayEntryFor(reg, activeDay);
+                  const summary = summarizeAttendance(
+                    reg,
+                    selectedEvent?.eventStart,
+                    selectedEvent?.eventEnd
+                  );
                   return (
                     <TableRow key={reg._id}>
                       <TableCell className="font-medium">
@@ -693,16 +683,13 @@ export default function AttendancePage() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            (OVERALL_STYLES[reg.status] as
-                              | "default"
-                              | "secondary"
-                              | "destructive"
-                              | "outline") || "outline"
-                          }
-                        >
-                          {OVERALL_LABELS[reg.status] || reg.status}
+                        {/* Derived from dayAttendance, not reg.status — see
+                            lib/utils/attendance-summary.ts. The stored status
+                            stays "attended" for the rest of the festival once
+                            a volunteer scans once, which is not what this
+                            column is asked to answer. */}
+                        <Badge variant={summary.variant} title={summary.title}>
+                          {summary.label}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

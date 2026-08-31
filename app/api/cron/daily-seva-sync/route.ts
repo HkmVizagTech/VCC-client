@@ -1,4 +1,16 @@
-// ─── Daily seva re-sync ─────────────────────────────────────────────────────
+// ─── Daily seva re-sync + attendance close-out ──────────────────────────────
+// Two jobs on the same 01:00 IST boundary, because they are the same moment
+// seen from either side: the day that just ended is settled (every rostered
+// volunteer who never scanned becomes a no-show, and their absence is pushed
+// to the community app), and the day that just began is set up (each serving
+// volunteer's seva is pushed again).
+//
+// The close-out half exists because a missed day used to leave no trace at
+// all. VCC only recorded a day when somebody acted on it, so a volunteer who
+// signed up for three days and scanned on one showed two permanently blank
+// days, and the community app was never told they were absent. See
+// lib/attendance-closeout.ts.
+//
 // The community app rebuilds each volunteer's card at midnight, so a seva
 // pushed yesterday is not shown today — it expects VCC to send the assignment
 // again for the current day. `assign-seva` carries no date field, so their
@@ -19,6 +31,8 @@ import { Types } from "mongoose";
 import { Registration, Event } from "@/lib/models";
 import { todayKey, dateInEventRange } from "@/lib/utils/event-days";
 import { syncAssignSevaNow } from "@/lib/community-sync";
+import { closeOutElapsedDays, servesOn } from "@/lib/attendance-closeout";
+import { pushAttendanceAndRecord } from "@/lib/attendance-sync";
 
 // Hundreds of volunteers at ~1s each — well past the default limit.
 export const maxDuration = 300;
@@ -49,23 +63,10 @@ type RegistrationRow = {
   serviceAvailability?: Array<{ date: string }> | null;
 };
 
-/**
- * Is this volunteer serving on `day`?
- *
- * `serviceAvailability` holds the days the volunteer said they can serve, e.g.
- * [{date:"2026-08-26"},{date:"2026-08-27"}]. Somebody who only signed up for
- * the 26th must not have a seva pushed on the 27th.
- *
- * An EMPTY list means the volunteer never picked specific days — either the
- * event has no availability slots configured, or they skipped that step. Those
- * are treated as available throughout, since the alternative is silently never
- * syncing them at all.
- */
-function servesOn(reg: RegistrationRow, day: string): boolean {
-  const availability = reg.serviceAvailability;
-  if (!availability || availability.length === 0) return true;
-  return availability.some((a) => a.date === day);
-}
+// `servesOn` lives in lib/attendance-closeout.ts so this job and the close-out
+// share one definition of who is expected on a given day. If they disagreed, a
+// volunteer could be pushed a seva for a day the close-out then marks them
+// absent from — or vice versa.
 
 /** Run `fn` over `items` with a fixed number of workers, tallying outcomes. */
 async function runPool<T>(
@@ -113,6 +114,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  // "closeout" runs only the attendance settlement; anything else runs both.
+  const mode = req.nextUrl.searchParams.get("mode") || "full";
+
   try {
     await connectDB();
     const today = todayKey();
@@ -120,13 +124,18 @@ export async function GET(req: NextRequest) {
     // Narrow in the DB with a generous window, then decide membership exactly
     // in IST — a UTC-range query alone would misjudge events that start or end
     // within 5.5 hours of midnight.
+    //
+    // The trailing edge is a week rather than two days so the close-out below
+    // can still settle a finished event's LAST day after a few missed cron
+    // runs. The leading edge stays short; nothing is done for an event that
+    // has not started.
     const DAY_MS = 86_400_000;
     const now = Date.now();
     const candidates = (await Event.find(
       {
         status: { $nin: ["draft", "archived"] },
         eventStart: { $lte: new Date(now + 2 * DAY_MS) },
-        eventEnd: { $gte: new Date(now - 2 * DAY_MS) },
+        eventEnd: { $gte: new Date(now - 7 * DAY_MS) },
       },
       "eventId name eventStart eventEnd"
     ).lean()) as unknown as EventRow[];
@@ -135,9 +144,80 @@ export async function GET(req: NextRequest) {
       dateInEventRange(today, e.eventStart, e.eventEnd)
     );
 
+    // ─── 1. Close out the days that have already ended ──────────────────────
+    // Runs across every candidate, not just the events running today, so the
+    // final day of an event that ended yesterday is settled too.
+    const closeOut: Array<Record<string, unknown>> = [];
+    let closedDays = 0;
+    let closePushed = 0;
+    let closeFailed = 0;
+
+    for (const event of candidates) {
+      const result = await closeOutElapsedDays(event);
+      if (result.daysClosed === 0 && result.markedNoShow === 0) continue;
+
+      const { ok, failed } = await runPool(
+        result.pushes,
+        CONCURRENCY,
+        (push: { registrationId: string; date: string }) =>
+          pushAttendanceAndRecord({
+            registrationId: push.registrationId,
+            date: push.date,
+            isPresent: false,
+          }).then((r) => r.ok)
+      );
+
+      closedDays += result.daysClosed;
+      closePushed += ok;
+      closeFailed += failed;
+      closeOut.push({
+        eventId: event.eventId,
+        name: event.name,
+        volunteers: result.registrationsClosed,
+        daysClosed: result.daysClosed,
+        markedNoShow: result.markedNoShow,
+        pushed: ok,
+        failed,
+      });
+      console.log(
+        `[attendance-closeout] ${today} ${event.eventId}: ${result.daysClosed} day(s) ` +
+          `marked no-show across ${result.registrationsClosed} volunteer(s), ` +
+          `${ok}/${result.pushes.length} pushed` +
+          (failed ? `, ${failed} failed` : "")
+      );
+    }
+
+    // ─── 2. Push today's sevas ──────────────────────────────────────────────
+    // `?mode=closeout` stops here. The close-out is idempotent and the seva
+    // push is NOT (their API does not de-duplicate, so a second run gives
+    // every volunteer a second seva for the day) — so this is the safe way to
+    // settle yesterday by hand, mid-festival, without touching today's cards.
+    if (mode === "closeout") {
+      return NextResponse.json({
+        date: today,
+        mode,
+        events: [],
+        pushed: 0,
+        failed: 0,
+        closeOut,
+        closedDays,
+        closePushed,
+        closeFailed,
+      });
+    }
+
     if (running.length === 0) {
-      console.log(`[daily-seva-sync] ${today}: no events running, nothing to do`);
-      return NextResponse.json({ date: today, events: [], pushed: 0, failed: 0 });
+      console.log(`[daily-seva-sync] ${today}: no events running, no sevas to push`);
+      return NextResponse.json({
+        date: today,
+        events: [],
+        pushed: 0,
+        failed: 0,
+        closeOut,
+        closedDays,
+        closePushed,
+        closeFailed,
+      });
     }
 
     const summary: Array<Record<string, unknown>> = [];
@@ -167,7 +247,9 @@ export async function GET(req: NextRequest) {
       // Only volunteers actually serving today. Someone who signed up for the
       // 26th alone gets nothing pushed on the 27th, and nobody is pushed ahead
       // of a day they have not reached yet.
-      const serving = regs.filter((reg) => servesOn(reg, today));
+      const serving = regs.filter((reg) =>
+        servesOn(reg.serviceAvailability, today)
+      );
       const notServingToday = regs.length - serving.length;
 
       const tasks = serving
@@ -217,6 +299,10 @@ export async function GET(req: NextRequest) {
       events: summary,
       pushed: totalOk,
       failed: totalFailed,
+      closeOut,
+      closedDays,
+      closePushed,
+      closeFailed,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Server error";

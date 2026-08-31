@@ -16,11 +16,18 @@ export interface ServiceAvailabilityEntry {
   endTime: string;
 }
 
+/**
+ * One event day's outcome for one registration.
+ *
+ * `source` says who wrote it: "qr" is the volunteer scanning at the gate,
+ * "admin" a coordinator on the attendance screen, and "auto" the nightly
+ * close-out that settles days nobody marked (see lib/attendance-closeout.ts).
+ */
 export interface DayAttendance {
   date: string;
   status: "attended" | "no_show";
   checkedInAt?: Date;
-  source?: "qr" | "admin";
+  source?: "qr" | "admin" | "auto";
 }
 
 export interface CustomAnswer {
@@ -98,7 +105,7 @@ const registrationSchema = new Schema<IRegistration>(
         date: { type: String, required: true },
         status: { type: String, enum: ["attended", "no_show"], required: true },
         checkedInAt: Date,
-        source: { type: String, enum: ["qr", "admin"] },
+        source: { type: String, enum: ["qr", "admin", "auto"] },
       },
     ],
     attendanceSync: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Volunteer } from "@/lib/models";
 import { validatePhone } from "@/lib/utils/phone";
+import { applyVolunteerProfile } from "@/lib/utils/volunteer-profile";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,9 +11,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const name = body.name;
     const phone = body.phone || body.phone_number;
-    const dateOfBirth = body.dateOfBirth || body.date_of_birth;
 
-    if (!name) {
+    if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { message: "Name is required" },
         { status: 400 }
@@ -30,22 +30,16 @@ export async function POST(req: NextRequest) {
     let volunteer = await Volunteer.findOne({ phone: phoneResult.phone });
     let created = false;
 
+    // Same rule as the public register route: the app's payload is the current
+    // truth about this phone number, so it overwrites rather than fills in.
     if (volunteer) {
-      if (dateOfBirth && !volunteer.dateOfBirth) {
-        volunteer.dateOfBirth = new Date(dateOfBirth);
-      }
-      if (name && name !== volunteer.name) {
-        volunteer.name = name;
-      }
-      if (volunteer.isModified()) {
+      if (applyVolunteerProfile(volunteer, body)) {
         await volunteer.save();
       }
     } else {
-      volunteer = await Volunteer.create({
-        name,
-        phone: phoneResult.phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      });
+      volunteer = new Volunteer({ phone: phoneResult.phone, skills: [] });
+      applyVolunteerProfile(volunteer, body);
+      await volunteer.save();
       created = true;
     }
 

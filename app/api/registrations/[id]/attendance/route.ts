@@ -11,7 +11,7 @@ type DayEntry = {
   date: string;
   status: "attended" | "no_show";
   checkedInAt?: Date;
-  source?: "qr" | "admin";
+  source?: "qr" | "admin" | "auto";
 };
 
 // PUT /api/registrations/:id/attendance — admin per-day attendance
@@ -115,7 +115,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
       date,
       status: status as "attended" | "no_show",
       checkedInAt: existing?.checkedInAt || new Date(),
-      source: status === "attended" ? "admin" : existing?.source || "admin",
+      // Always "admin" — a human just decided this. Carrying the previous
+      // source forward would leave a day a coordinator deliberately corrected
+      // still labelled "auto" from the nightly close-out.
+      source: "admin",
     };
     registration.dayAttendance = [
       ...dayAttendance.filter((d) => d.date !== date),
