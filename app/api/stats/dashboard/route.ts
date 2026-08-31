@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       totalRegistrations,
       statusBreakdown,
       recentRegistrations,
-      skillsDistribution,
+      upcomingEvents,
     ] = await Promise.all([
       Volunteer.countDocuments(),
       Event.countDocuments({
@@ -44,12 +44,34 @@ export async function GET(req: NextRequest) {
         },
         { $sort: { _id: 1 } },
       ]),
-      Volunteer.aggregate([
-        { $unwind: "$skills" },
-        { $group: { _id: "$skills", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
+      Event.find({
+        status: { $in: ["ongoing", "registration_open", "registration_closed"] },
+      })
+        .sort({ eventStart: 1 })
+        .limit(6)
+        .lean(),
     ]);
+
+    // Get registration counts for each upcoming event
+    const eventIds = upcomingEvents.map((e: any) => e._id);
+    const regCounts = await Registration.aggregate([
+      { $match: { eventId: { $in: eventIds } } },
+      { $group: { _id: "$eventId", count: { $sum: 1 } } },
+    ]);
+    const regCountMap: Record<string, number> = {};
+    regCounts.forEach((r: any) => {
+      regCountMap[r._id.toString()] = r.count;
+    });
+    const eventsWithCounts = upcomingEvents.map((e: any) => ({
+      _id: e._id,
+      eventId: e.eventId,
+      name: e.name,
+      status: e.status,
+      eventStart: e.eventStart,
+      eventEnd: e.eventEnd,
+      venue: e.venue,
+      registrationCount: regCountMap[e._id.toString()] || 0,
+    }));
 
     const statusMap: Record<string, number> = {};
     statusBreakdown.forEach((s: any) => {
@@ -63,7 +85,7 @@ export async function GET(req: NextRequest) {
       assigned: statusMap.assigned || 0,
       attended: statusMap.attended || 0,
       recentRegistrations,
-      skillsDistribution,
+      upcomingEvents: eventsWithCounts,
     });
   } catch (error: any) {
     return NextResponse.json(

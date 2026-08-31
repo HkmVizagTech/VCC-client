@@ -5,8 +5,20 @@ import { authFetch } from "@/lib/authClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Users, Calendar, ClipboardList, UserCheck } from "lucide-react";
 import { RefreshButton } from "@/components/refresh-button";
+
+interface UpcomingEvent {
+  _id: string;
+  eventId: string;
+  name: string;
+  status: string;
+  eventStart: string;
+  eventEnd: string;
+  venue?: string;
+  registrationCount: number;
+}
 
 interface DashboardStats {
   totalVolunteers: number;
@@ -16,21 +28,33 @@ interface DashboardStats {
   attended: number;
   byStatus: Record<string, number>;
   recentRegistrations: { _id: string; count: number }[];
-  skillsDistribution: { _id: string; count: number }[];
+  upcomingEvents: UpcomingEvent[];
 }
 
-const skillLabels: Record<string, string> = {
-  medical: "Medical",
-  photography: "Photography",
-  videography: "Videography",
-  driving: "Driving",
-  electrical: "Electrical",
-  sound: "Sound",
-  it: "IT / Tech",
-  graphic_design: "Graphic Design",
-  cooking: "Cooking",
-  crowd_management: "Crowd Management",
-  other: "Other",
+const statusConfig: Record<
+  string,
+  { label: string; className: string }
+> = {
+  draft: {
+    label: "Draft",
+    className: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  },
+  registration_open: {
+    label: "Open",
+    className: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  },
+  registration_closed: {
+    label: "Closed",
+    className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+  },
+  ongoing: {
+    label: "Ongoing",
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  },
+  completed: {
+    label: "Completed",
+    className: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  },
 };
 
 export default function AdminDashboard() {
@@ -117,9 +141,8 @@ export default function AdminDashboard() {
   ];
   const funnelMax = Math.max(...funnelSteps.map((s) => s.value), 1);
 
-  // Skills distribution
-  const skills = stats?.skillsDistribution ?? [];
-  const skillMax = Math.max(...skills.map((s) => s.count), 1);
+  // Upcoming & ongoing events
+  const upcomingEvents = stats?.upcomingEvents ?? [];
 
   // Recent registrations
   const recent = stats?.recentRegistrations ?? [];
@@ -186,32 +209,63 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Skills Distribution */}
+        {/* Upcoming & Ongoing Events */}
         <div className="rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Skills Distribution</h2>
-          {skills.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No data available</p>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Upcoming Events</h2>
+            <Link
+              href="/admin/events"
+              className="text-sm text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No upcoming events
+            </p>
           ) : (
             <div className="space-y-3">
-              {skills.map((skill) => {
-                const pct = Math.round((skill.count / skillMax) * 100);
+              {upcomingEvents.map((event) => {
+                const sc = statusConfig[event.status] || statusConfig.draft;
+                const startDate = new Date(event.eventStart);
+                const endDate = new Date(event.eventEnd);
+                const dateStr =
+                  startDate.toDateString() === endDate.toDateString()
+                    ? startDate.toLocaleDateString("en-IN", {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : `${startDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} – ${endDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`;
                 return (
-                  <div key={skill._id}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium">
-                        {skillLabels[skill._id] || skill._id}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {skill.count}
-                      </span>
+                  <Link
+                    key={event._id}
+                    href={`/admin/events/${event._id}`}
+                    className="flex items-center justify-between rounded-md border p-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">
+                          {event.name}
+                        </p>
+                        <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>
+                          {sc.label}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{dateStr}</span>
+                        {event.venue && <span>📍 {event.venue}</span>}
+                      </div>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-blue-500 transition-all dark:bg-blue-400"
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className="ml-4 text-right">
+                      <p className="text-lg font-bold">
+                        {event.registrationCount}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        registrations
+                      </p>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
