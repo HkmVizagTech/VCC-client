@@ -132,6 +132,8 @@ Call this when the user opens the mobile app or signs up. It creates the user if
 
 **Required fields:** `name`, `phone` — everything else is optional.
 
+> **Field aliases.** `phone` is also accepted as `phone_number`, `mobile_number` or `volunteer_mobile_number`; `name` as `volunteer_name`; `customAnswers` as `custom_answers`; `serviceAvailability` as `service_availability`, `availability` or `slots`. Send whichever your export already produces — no reshaping needed. (`devotee_mobile_number` is *not* read as the volunteer's phone — that's the referring devotee.)
+
 | Field | Rules |
 |-------|-------|
 | `phone` | Any Indian number. Non-digits are stripped and only the **last 10 digits** are kept. Invalid → `400 "Phone number must be exactly 10 digits"`. |
@@ -185,9 +187,38 @@ curl -X POST https://vcc-client.vercel.app/api/events/public/SKJ26V/register ^
 | `400` | `"<label>" is required` | Fill in the highlighted custom field |
 | `400` | `"<label>" must be a number` / `has an invalid option` / `must be a valid date` | Fix the highlighted field |
 | `404` | `Event not found` | Wrong event code / event removed |
-| `409` | `Already registered for this event` | "You're already registered" (safe to show this as a success state) |
+| `409` | *(no longer returned)* | A repeat push is now a `200` merge — see below |
 
-**Alternative endpoint:** `POST /api/registrations` does the same thing but takes the Mongo `_id` in the body instead of the event code in the URL. Prefer the `.../register` URL form — it uses the stable, human-readable event code.
+### Repeat pushes: one row per day is fine
+
+A volunteer serving several days of a festival can be pushed as **one POST per day** — the shape a seva sheet exports:
+
+| event_id | name | mobile_number | date | start_time | end_time | label |
+|---|---|---|---|---|---|---|
+| SKJV26 | M Bharath | 8886176475 | 04-09-2026 | 06:00:00 | 21:00:00 | 06:00 - 21:00 |
+| SKJV26 | M Bharath | 8886176475 | 05-09-2026 | 06:00:00 | 21:00:00 | 06:00 - 21:00 |
+
+The **first** row creates the registration (`201`). Every **later** row for the same phone + event is folded into that same registration and answers `200`:
+
+```json
+{
+  "message": "Registration updated — availability merged",
+  "merged": true,
+  "addedAvailability": [{ "date": "2026-09-05", "startTime": "06:00", "endTime": "21:00" }],
+  "registration": { "...": "the one registration, now holding both days" },
+  "volunteer": { "...": "..." }
+}
+```
+
+- `merged: true` means "this was an existing registration", `addedAvailability` lists the slots this call actually added. Both empty-added and added are `200` — **re-sending the whole sheet is safe and idempotent.**
+- The day can be sent either as a bare row (`date` + `start_time`/`end_time`, or `date` + `label`) **or** inside `serviceAvailability` — both are read.
+- Dates may be `2026-09-04` or `04-09-2026` (day-first); times may be `06:00:00`, `06:00`, `6:00` or `9 PM`. They are normalized and snapped onto the event's configured slots.
+- If the day has exactly one configured slot, sending just `date` is enough.
+- The merge is **additive** — it never replaces days already on the registration, and it never touches `status`, the assigned `serviceId`, or answers the volunteer already gave.
+- Custom answers on a later row are validated *partially*: a slim second row is not rejected for a missing required field, and a field it omits keeps its stored answer.
+- Merges also work after registration closes (an extra day for someone who signed up in time is not a new sign-up). Genuinely new registrations still respect `registration_open` and the deadline.
+
+**Alternative endpoint:** `POST /api/registrations` behaves identically (same merge, same aliases) but takes the event in the body as `eventId` / `event_id` — and accepts **either** the Mongo `_id` **or** the short event code (`SKJV26`). Prefer the `.../register` URL form.
 
 ---
 

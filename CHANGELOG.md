@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-03
+
+### Fixed — repeat pushes from the Vaikuntham app no longer lose days
+
+The community app's backend exports **one row per (volunteer, day)**, so a volunteer serving the 4th and the 5th of a festival arrives as two POSTs. The first created the registration; every later one came back `409 Already registered for this event` and was thrown away — VCC showed the volunteer for one day only, with nothing to indicate the others had been sent. On the SKJ Gambhiram sheet (354 rows, 170 volunteers) that was **184 rows rejected and 142 second days lost**.
+
+A repeat push is now folded into the existing registration and answered `200`.
+
+- **New** `lib/utils/service-availability.ts`: parses availability from either the documented `serviceAvailability` array **or** a bare exported row (`date` + `start_time`/`end_time`/`label`); normalizes `04-09-2026` → `2026-09-04` and `06:00:00` → `06:00`; snaps entries onto the event's own configured slots so a pushed slot and an admin-picked one are byte-identical (the admin screens match slots by string equality). Also `mergeServiceAvailability()` — additive, deduped, date-sorted.
+- **New** `lib/registration-push.ts`: `mergePushIntoRegistration()`, shared by both push endpoints. Merges availability and custom answers per field; deliberately never touches `status`, `serviceId`, or answers already stored.
+- **`app/api/events/public/[eventId]/register/route.ts`**: an existing registration is now looked up *before* the registration-window checks and merged into — `200 { merged: true, addedAvailability: [...] }` instead of `409`. Idempotent: re-sending the whole sheet changes nothing. The registration window and full custom-field validation now apply to **new** registrations only, so an extra day for someone who signed up in time still lands after the deadline. A `11000` duplicate-key race (batched pushes in flight together) merges into the winner instead of reporting a conflict, and the same is done for the unique-phone race on volunteer creation.
+- **`app/api/registrations/route.ts`**: identical merge behaviour, and `eventId`/`event_id` now accepts the **short event code** as well as the Mongo `_id` — `findById("SKJV26")` used to throw a CastError and surface as a 500.
+- **`lib/utils/custom-fields.ts`**: `validateAndNormalizeAnswers(fields, answers, { partial: true })` validates only the fields a payload carries, without enforcing required ones, and skips junk values rather than failing. Used on the merge path so a slim later row is not rejected for a field the first row already answered. New registrations are unchanged — full validation still applies.
+- **Field aliases** on both endpoints: `phone` also as `phone_number` / `mobile_number` / `volunteer_mobile_number`, `name` as `volunteer_name`, `customAnswers` as `custom_answers`. `devotee_mobile_number` is not read as the volunteer's phone.
+- **Docs**: `MOBILE-APP-API.md` — the `409` row is gone, replaced by a "Repeat pushes: one row per day is fine" section.
+
 ## 2026-08-12
 
 ### Added — per-day attendance

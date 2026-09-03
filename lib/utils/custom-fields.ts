@@ -55,12 +55,36 @@ export function sanitizeCustomFields(input: unknown): ICustomField[] {
   return result;
 }
 
+export interface NormalizedAnswer {
+  fieldId: string;
+  label: string;
+  type: string;
+  value: unknown;
+}
+
+export interface ValidateAnswersOptions {
+  /**
+   * Validate only the fields the payload actually carries, without enforcing
+   * required/important ones.
+   *
+   * For a REPEAT push from the Vaikuntham app (one row per volunteer per day,
+   * folded into an existing registration) the answers were already collected
+   * and stored by the first row. A later row is often slimmer, and failing it
+   * with `"<label>" is required` would reject a push whose only job is to add
+   * another day — see lib/registration-push.ts. New registrations still go
+   * through the full check.
+   */
+  partial?: boolean;
+}
+
 export function validateAndNormalizeAnswers(
   fields: ICustomField[] | undefined,
-  answers: unknown
-): { ok: true; answers: Array<{ fieldId: string; label: string; type: string; value: unknown }> } | { ok: false; message: string } {
+  answers: unknown,
+  options: ValidateAnswersOptions = {}
+): { ok: true; answers: NormalizedAnswer[] } | { ok: false; message: string } {
   const list = fields || [];
   if (list.length === 0) return { ok: true, answers: [] };
+  const partial = options.partial === true;
 
   const answerMap = new Map<string, unknown>();
   if (Array.isArray(answers)) {
@@ -75,7 +99,7 @@ export function validateAndNormalizeAnswers(
     }
   }
 
-  const normalized: Array<{ fieldId: string; label: string; type: string; value: unknown }> = [];
+  const normalized: NormalizedAnswer[] = [];
 
   for (const field of list) {
     const raw = answerMap.get(field.id);
@@ -86,7 +110,7 @@ export function validateAndNormalizeAnswers(
       (Array.isArray(raw) && raw.length === 0);
 
     if (isEmpty) {
-      if (field.required || field.important) {
+      if (!partial && (field.required || field.important)) {
         return { ok: false, message: `"${field.label}" is required` };
       }
       continue;
@@ -97,6 +121,11 @@ export function validateAndNormalizeAnswers(
     if (field.type === "number") {
       const n = Number(raw);
       if (Number.isNaN(n)) {
+        // In partial mode a junk value is skipped rather than rejected: the
+        // first row's validated answer stays, and the push still gets to add
+        // its day. Failing here would lose the day over a field the volunteer
+        // already answered correctly.
+        if (partial) continue;
         return { ok: false, message: `"${field.label}" must be a number` };
       }
       value = n;
@@ -105,28 +134,32 @@ export function validateAndNormalizeAnswers(
       const cleaned = arr
         .map((v) => (typeof v === "string" ? v : String(v)))
         .filter((v) => field.options?.includes(v));
-      if ((field.required || field.important) && cleaned.length === 0) {
+      if (!partial && (field.required || field.important) && cleaned.length === 0) {
         return { ok: false, message: `"${field.label}" is required` };
       }
+      if (partial && cleaned.length === 0) continue;
       value = cleaned;
     } else if (field.type === "devotee_select") {
       const arr = Array.isArray(raw) ? raw : [raw];
       const cleaned = arr
         .map((v) => (typeof v === "string" ? v.trim() : String(v)))
         .filter((v) => v.length > 0);
-      if ((field.required || field.important) && cleaned.length === 0) {
+      if (!partial && (field.required || field.important) && cleaned.length === 0) {
         return { ok: false, message: `"${field.label}" is required` };
       }
+      if (partial && cleaned.length === 0) continue;
       value = cleaned;
     } else if (field.type === "select" || field.type === "radio") {
       const str = typeof raw === "string" ? raw : String(raw);
       if (!field.options?.includes(str)) {
+        if (partial) continue;
         return { ok: false, message: `"${field.label}" has an invalid option` };
       }
       value = str;
     } else if (field.type === "date") {
       const str = typeof raw === "string" ? raw : String(raw);
       if (Number.isNaN(new Date(str).getTime())) {
+        if (partial) continue;
         return { ok: false, message: `"${field.label}" must be a valid date` };
       }
       value = str;
