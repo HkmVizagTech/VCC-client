@@ -64,6 +64,8 @@ export interface IEvent extends Document {
   status: EventStatus;
   coordinatorId: Types.ObjectId;
   createdBy?: Types.ObjectId;
+  /** Last time the QR Seva Pass backend pushed this event (unset = created in VCC). */
+  qrSyncedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -131,6 +133,7 @@ const eventSchema = new Schema<IEvent>(
       required: true,
     },
     createdBy: { type: Schema.Types.ObjectId, ref: "user" },
+    qrSyncedAt: Date,
   },
   { timestamps: true, versionKey: false }
 );
