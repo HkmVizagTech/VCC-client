@@ -165,15 +165,11 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     if (update.status !== undefined && !EVENT_STATUSES.includes(update.status as any)) {
       return NextResponse.json({ message: `Invalid status "${update.status}"` }, { status: 400 });
     }
+    // Same people VCC's own event form offers: event and service coordinators
+    // (and super_admin, which the admin API also accepts).
     if (update.coordinatorId !== undefined) {
       const id = String(update.coordinatorId);
-      const ok =
-        mongoose.isValidObjectId(id) &&
-        (await User.exists({
-          _id: id,
-          role: { $in: ["super_admin", "event_coordinator"] },
-          status: "active",
-        }));
+      const ok = await isCoordinator(id);
       if (!ok) {
         return NextResponse.json({ message: "Coordinator not found or inactive" }, { status: 400 });
       }

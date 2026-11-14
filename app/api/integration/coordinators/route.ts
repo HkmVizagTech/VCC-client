@@ -4,8 +4,8 @@ import { User } from "@/lib/models";
 import { authenticateIntegration } from "@/lib/integration-auth";
 
 // GET /api/integration/coordinators
-// Active coordinators, for the QR admin dashboard's pickers. Events can be
-// owned by super_admin / event_coordinator; services by any of the three.
+// Active coordinators for the QR admin dashboard's pickers. QR shows the same
+// list as VCC's own event form (everyone except super_admin).
 export async function GET(req: NextRequest) {
   const denied = authenticateIntegration(req);
   if (denied) return denied;
